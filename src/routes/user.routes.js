@@ -21,4 +21,6 @@ router.route("/update-account").patch(verifyJWT,updateAccountDetails)
 
 
 
+
+
 export default router

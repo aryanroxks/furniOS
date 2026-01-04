@@ -38,11 +38,8 @@ const createRole = asyncHandler(async(req,res) => {
     .json(new ApiResponse(200,createdRole,"Role successfully created!"))
 })
 
-const deleteRole = asyncHandler(async(req,res) => {
-
-})
 
 export {
     createRole,
-    deleteRole
+    
 }

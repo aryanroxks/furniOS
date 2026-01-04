@@ -21,6 +21,7 @@ app.use(cookieParser())
 
 import userRouter from "./routes/user.routes.js"
 import roleRouter from "./routes/role.routes.js"
+import category from "./routes/category.routes.js"
 
 
 
@@ -38,6 +39,7 @@ import roleRouter from "./routes/role.routes.js"
 
 app.use("/api/v1/users",userRouter)
 app.use("/api/v1/roles",roleRouter)
+app.use("/api/v1/category",category)
 
 // app.use("/api/v1/healthcheck", healthcheckRouter)
 // app.use("/api/v1/users", userRouter)
