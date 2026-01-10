@@ -12,7 +12,7 @@ router.route("/login").post(logInUser)
 
 
 //SECURED 
-
+router.route("/refresh-token").post(refreshAccessToken)
 router.route("/logout").post(verifyJWT,logOutUser)
 router.route("/refresh-token").post(refreshAccessToken)
 router.route("/change-password").post(verifyJWT,changeCurrentPassword)

@@ -36,9 +36,9 @@ const productSchema = new Schema(
                     type: String,
                     required: true,
                 },
-                publicId: {
+                publicID: {
                     type: String,
-                    // required: true,
+                    required: true,
                 },
                 isPrimary: {
                     type: Boolean,
@@ -49,22 +49,15 @@ const productSchema = new Schema(
         ],
         videos: [
             {
-                name: {
-                    type: String, // front, side, back, etc.
-                    trim: true,
-                },
+
                 url: {
                     type: String,
                     required: true,
                 },
-                publicId: {
+                publicID: {
                     type: String,
-                    // required: true,
-                },
-                isPrimary: {
-                    type: Boolean,
-                    default: false,
-                },
+                    required: true,
+                }
 
             },
         ]
