@@ -48,7 +48,7 @@ const registerUser = async (req, res, roleName) => {
     // check for user creation
     // return res
 
-    const { username, email, fullname, password, phone, gender, address, pincode, state, city, street } = req.body
+    const { username, email, fullname, password, phone, gender, address, pincode, state, city, street, gstNumber} = req.body
 
     if (
         [username, email, fullname, password, phone, gender, address, pincode, state, city, street].some((field) => field?.trim() === "")
@@ -78,6 +78,10 @@ const registerUser = async (req, res, roleName) => {
         throw new ApiError(404, "Invalid role!")
     }
 
+    if(roleName === "wholesale_customer" && !gstNumber){
+        throw new ApiError(400,"GST number is required for wholesale users")
+    }
+
     const user = await User.create({
         username,
         email,
@@ -90,7 +94,8 @@ const registerUser = async (req, res, roleName) => {
         city,
         state,
         pincode,
-        roleID: existedRole._id
+        roleID: existedRole._id,
+        gstNumber: gstNumber || ""
     })
 
     const createdUser = await User.findById(user._id).select(
