@@ -7,57 +7,52 @@ import { Cart } from "../models/cart.model.js";
 
 
 const addProductToCart = asyncHandler(async (req, res) => {
-    const { productId } = req.body
+    const { productId, qty = 1 } = req.body;
 
-    const product = await Product.findById(productId)
-
-    if (!product) {
-        throw new ApiError(404, "Product not found!")
+    if (qty < 1) {
+        throw new ApiError(400, "Quantity must be at least 1");
     }
 
-    let cart = await Cart.findOne({ userID: req.user?._id })
+    const product = await Product.findById(productId);
+    if (!product) {
+        throw new ApiError(404, "Product not found!");
+    }
+
+    let cart = await Cart.findOne({ userID: req.user._id });
+
     if (cart) {
-
-        //If user increases quantity of already added product
-
         const existingProduct = cart.products.find(
             (item) => item.productID.toString() === productId
         );
 
-
         if (existingProduct) {
-            existingProduct.quantity += 1;
+            existingProduct.quantity += qty; // 🔥 FIX
             existingProduct.price = product.price;
-
-        }
-        else {
+        } else {
             cart.products.push({
                 productID: product._id,
-                quantity: 1,
+                quantity: qty, // 🔥 FIX
                 price: product.price
             });
-
         }
 
-        await cart.save()
-
-    }
-    else {
+        await cart.save();
+    } else {
         cart = await Cart.create({
-            userID: req.user?._id,
+            userID: req.user._id,
             products: [{
                 productID: product._id,
-                quantity: 1,
+                quantity: qty, // 🔥 FIX
                 price: product.price
             }]
-        })
+        });
     }
 
     return res
         .status(200)
-        .json(new ApiResponse(200, cart, "Product added to cart successfully!"))
+        .json(new ApiResponse(200, cart, "Product added to cart successfully!"));
+});
 
-})
 
 
 const removeProductFromCart = asyncHandler(async (req, res) => {
@@ -119,30 +114,41 @@ const decreaseQuantity = asyncHandler(async (req, res) => {
 
 
 const getCart = asyncHandler(async (req, res) => {
+  const cart = await Cart.findOne({
+    userID: req.user._id
+  }).populate("products.productID");
 
-    const cart = await Cart.findOne({
-        userID: req.user._id
-    });
+  if (!cart) {
+    throw new ApiError(404, "Cart not found!");
+  }
 
-    if (!cart) {
-        throw new ApiError(404, "Cart not found!");
-    }
+  const totalCartValue = cart.products.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
 
-    const totalCartValue = cart.products.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-    );
+  // 🔥 FLATTEN FOR FRONTEND
+  const products = cart.products.map((item) => ({
+    _id: item.productID._id,
+    name: item.productID.name,
+    image: item.productID.images?.[0]?.url,
+    price: item.price,
+    qty: item.quantity,
+  }));
 
-
-
-    return res.status(200).json(
-        new ApiResponse(200, {
-            cart,
-            totalCartValue,
-            totalItems: cart.products.length
-        }, "Cart fetched successfully")
-    );
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        products,
+        totalCartValue,
+        totalItems: products.length,
+      },
+      "Cart fetched successfully"
+    )
+  );
 });
+
 
 
 

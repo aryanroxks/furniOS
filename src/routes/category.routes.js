@@ -12,14 +12,14 @@ const router=Router();
 router.route("/create-category").post(verifyJWT,authorizeRoles(roles.admin),createCategory)
 router.route("/update-category/:categoryId").patch(verifyJWT,authorizeRoles(roles.admin),updateCategory)
 router.route("/delete-category/:categoryId").delete(verifyJWT,authorizeRoles(roles.admin),deleteCategory)
-router.route("/").get(verifyJWT,authorizeRoles(roles.admin),getCategories)
+router.route("/").get(getCategories)
 router.route("/:categoryId").get(verifyJWT,authorizeRoles(roles.admin),getCategoryById)
 
 
 //Sub category routes
 
 router.route("/:categoryId/create-subcategory").post(verifyJWT,authorizeRoles(roles.admin),createSubCategory)
-router.route("/:categoryId/subcategories").get(verifyJWT,authorizeRoles(roles.admin),getSubCategories)
+router.route("/:categoryId/subcategories").get(getSubCategories)
 
 
 export default router

@@ -9,51 +9,168 @@ import { SubCategory } from "../models/sub_category.model.js";
 
 
 
+// const createProduct = asyncHandler(async (req, res) => {
+
+//     const { subCategoryId, name, description, price } = req.body
+
+//     const existedSubCategory = await SubCategory.findById(subCategoryId)
+
+//     if (!existedSubCategory) {
+//         throw new ApiError(404, "Sub category not found!")
+//     }
+
+//     const imageNames = req.body.imageNames
+
+//     if (!subCategoryId || !name || !description || !price) {
+//         throw new ApiError(400, "All fields are required");
+//     }
+
+//     if (!req.files?.images || req.files.images.length === 0) {
+//         throw new ApiError(400, "At least one image is required!")
+//     }
+
+//     if (!imageNames || imageNames.length !== req.files.images.length) {
+//         throw new ApiError(400, "Image names count must match with images!")
+//     }
+
+
+
+//     const existedProduct = await Product.findOne({
+//         subCategoryId,
+//         name: name.trim(),
+//         price
+//     })
+
+//     if (existedProduct) {
+//         throw new ApiError(409, "Product already exists!")
+//     }
+
+//     const images = [];
+
+//     for (let i = 0; i < req.files.images.length; i++) {
+//         const imageLocalPath = req.files.images[i].path
+
+//         const imageUpload = await uploadOnCloudinary(imageLocalPath)
+
+//         if (!imageUpload) {
+//             throw new ApiError(400, "Image upload failed!")
+//         }
+
+//         images.push({
+//             name: imageNames[i],
+//             url: imageUpload.url,
+//             publicID: imageUpload.publicId,
+//             isPrimary: i === 0
+//         })
+//     }
+
+//     const videos = [];
+
+//     if (req.files.videos && req.files.videos.length > 0) {
+//         for (let i = 0; i < req.files.videos.length; i++) {
+
+//             const videoLocalPath = req.files.videos[i].path
+
+//             const videoUpload = await uploadOnCloudinary(videoLocalPath, {
+//                 resource_type: "video"
+//             })
+
+//             if (!videoUpload) {
+//                 throw new ApiError("Video upload failed!")
+//             }
+
+//             videos.push({
+//                 url: videoUpload.url,
+//                 publicID: videoUpload.publicId
+//             })
+//         }
+//     }
+
+//     const product = await Product.create({
+//         subCategoryID: subCategoryId,
+//         name,
+//         price,
+//         description,
+//         images,
+//         videos
+
+//     })
+
+//     return res
+//         .status(200)
+//         .json(new ApiResponse(200, product, "Product created successfully!"))
+
+// })
+
+
 const createProduct = asyncHandler(async (req, res) => {
 
-    const { subCategoryId, name, description, price } = req.body
+    const { subCategoryId, name, description, price, features } = req.body;
 
-    const existedSubCategory = await SubCategory.findById(subCategoryId)
+    /* ---------- BASIC VALIDATION ---------- */
 
-    if (!existedSubCategory) {
-        throw new ApiError(404, "Sub category not found!")
-    }
-
-    const imageNames = req.body.imageNames
-
-    if (!subCategoryId || !name || !description || !price) {
+    if (!subCategoryId || !name || !description || price === undefined) {
         throw new ApiError(400, "All fields are required");
     }
 
+    if (
+        !features ||
+        !features.material ||
+        !features.color ||
+        !features.height ||
+        !features.width ||
+        !features.length
+    ) {
+        throw new ApiError(
+            400,
+            "Features must include material, color, height, width and length"
+        );
+    }
+
+    /* ---------- SUB CATEGORY CHECK ---------- */
+
+    const existedSubCategory = await SubCategory.findById(subCategoryId);
+    if (!existedSubCategory) {
+        throw new ApiError(404, "Sub category not found!");
+    }
+
+    /* ---------- IMAGE VALIDATION ---------- */
+
+    const imageNames = req.body.imageNames;
+
     if (!req.files?.images || req.files.images.length === 0) {
-        throw new ApiError(400, "At least one image is required!")
+        throw new ApiError(400, "At least one image is required!");
     }
 
     if (!imageNames || imageNames.length !== req.files.images.length) {
-        throw new ApiError(400, "Image names count must match with images!")
+        throw new ApiError(400, "Image names count must match with images!");
     }
 
-
+    /* ---------- DUPLICATE PRODUCT CHECK ---------- */
+    /* Uses correct field name: subCategoryID */
 
     const existedProduct = await Product.findOne({
-        subCategoryId,
+        subCategoryID: subCategoryId,
         name: name.trim(),
-        price
-    })
+        "features.color": features.color
+    });
+
 
     if (existedProduct) {
-        throw new ApiError(409, "Product already exists!")
+        throw new ApiError(409, "Product already exists!");
     }
+
+    /* ---------- IMAGE UPLOAD ---------- */
 
     const images = [];
 
     for (let i = 0; i < req.files.images.length; i++) {
-        const imageLocalPath = req.files.images[i].path
-
-        const imageUpload = await uploadOnCloudinary(imageLocalPath)
+        const imageUpload = await uploadOnCloudinary(
+            req.files.images[i].path
+        );
 
         if (!imageUpload) {
-            throw new ApiError(400, "Image upload failed!")
+            throw new ApiError(400, "Image upload failed!");
         }
 
         images.push({
@@ -61,93 +178,278 @@ const createProduct = asyncHandler(async (req, res) => {
             url: imageUpload.url,
             publicID: imageUpload.publicId,
             isPrimary: i === 0
-        })
+        });
     }
+
+    /* ---------- VIDEO UPLOAD (OPTIONAL) ---------- */
 
     const videos = [];
 
-    if (req.files.videos && req.files.videos.length > 0) {
-        for (let i = 0; i < req.files.videos.length; i++) {
-
-            const videoLocalPath = req.files.videos[i].path
-
-            const videoUpload = await uploadOnCloudinary(videoLocalPath, {
+    if (req.files.videos?.length) {
+        for (const video of req.files.videos) {
+            const videoUpload = await uploadOnCloudinary(video.path, {
                 resource_type: "video"
-            })
+            });
 
             if (!videoUpload) {
-                throw new ApiError("Video upload failed!")
+                throw new ApiError(400, "Video upload failed!");
             }
 
             videos.push({
                 url: videoUpload.url,
                 publicID: videoUpload.publicId
-            })
+            });
         }
     }
 
+    /* ---------- PRODUCT CREATE ---------- */
+
     const product = await Product.create({
         subCategoryID: subCategoryId,
-        name,
-        price,
+        name: name.trim(),
         description,
+        price,
+        features,
         images,
         videos
-
-    })
+    });
 
     return res
         .status(200)
-        .json(new ApiResponse(200, product, "Product created successfully!"))
+        .json(new ApiResponse(200, product, "Product created successfully!"));
+});
 
-})
+
+
+// const updateProduct = asyncHandler(async (req, res) => {
+
+//     const { name, price, description, subCategoryId } = req.body
+//     const { productId } = req.params
+
+
+//     const existedProduct = await Product.findById(productId)
+
+//     if (!existedProduct) {
+//         throw new ApiError(404, "Product not found!")
+//     }
+
+//     const data = {}
+
+//     if (name !== undefined) data.name = name
+//     if (price !== undefined) data.price = price
+//     if (description !== undefined) data.description = description
+
+//     if (subCategoryId !== undefined) {
+//         const existedSubCategory = await SubCategory.findById(subCategoryId)
+
+//         if (!existedSubCategory) {
+//             throw new ApiError(404, "Sub category not found!")
+//         }
+//         data.subCategoryID = subCategoryId
+//     }
+
+
+
+
+//     const updatedProduct = await Product.findByIdAndUpdate(
+//         existedProduct._id,
+//         {
+//             $set: data
+//         },
+//         {
+//             new: true
+//         }
+//     )
+
+//     return res
+//         .status(200)
+//         .json(new ApiResponse(200, updatedProduct, "Product details updated successfully!"))
+
+// })
+
+// const updateProduct = asyncHandler(async (req, res) => {
+
+//     const {
+//         name,
+//         price,
+//         description,
+//         subCategoryId,
+//         features
+//     } = req.body;
+
+//     const { productId } = req.params;
+
+//     const existedProduct = await Product.findById(productId);
+//     if (!existedProduct) {
+//         throw new ApiError(404, "Product not found!");
+//     }
+
+//     const data = {};
+
+//     /* ---------- BASIC FIELDS ---------- */
+
+//     if (name !== undefined) data.name = name.trim();
+//     if (price !== undefined) data.price = price;
+//     if (description !== undefined) data.description = description;
+
+//     /* ---------- SUB CATEGORY UPDATE ---------- */
+
+//     if (subCategoryId !== undefined) {
+//         const existedSubCategory = await SubCategory.findById(subCategoryId);
+//         if (!existedSubCategory) {
+//             throw new ApiError(404, "Sub category not found!");
+//         }
+//         data.subCategoryID = subCategoryId;
+//     }
+
+//     /* ---------- FEATURES UPDATE ---------- */
+
+//     if (features !== undefined) {
+
+//         if (
+//             !features.material ||
+//             !features.color ||
+//             !features.height ||
+//             !features.width ||
+//             !features.length
+//         ) {
+//             throw new ApiError(
+//                 400,
+//                 "Complete features object is required when updating features"
+//             );
+//         }
+
+//         data.features = features;
+//     }
+
+//     /* ---------- NO-OP UPDATE GUARD ---------- */
+
+//     if (Object.keys(data).length === 0) {
+//         throw new ApiError(400, "No valid fields provided for update");
+//     }
+
+//     const updatedProduct = await Product.findByIdAndUpdate(
+//         existedProduct._id,
+//         { $set: data },
+//         { new: true }
+//     );
+
+//     return res
+//         .status(200)
+//         .json(
+//             new ApiResponse(
+//                 200,
+//                 updatedProduct,
+//                 "Product details updated successfully!"
+//             )
+//         );
+// });
 
 
 const updateProduct = asyncHandler(async (req, res) => {
 
-    const { name, price, description, subCategoryId } = req.body
-    const { productId } = req.params
+    const {
+        name,
+        price,
+        description,
+        subCategoryId,
+        features
+    } = req.body;
 
+    const { productId } = req.params;
 
-    const existedProduct = await Product.findById(productId)
+    /* ---------- FIND PRODUCT ---------- */
+
+    const existedProduct = await Product.findById(productId);
 
     if (!existedProduct) {
-        throw new ApiError(404, "Product not found!")
+        throw new ApiError(404, "Product not found!");
     }
 
-    const data = {}
+    const data = {};
 
-    if (name !== undefined) data.name = name
-    if (price !== undefined) data.price = price
-    if (description !== undefined) data.description = description
+    /* ---------- BASIC FIELD UPDATES ---------- */
+
+    if (name !== undefined) {
+        data.name = name.trim();
+    }
+
+    if (price !== undefined) {
+        data.price = price;
+    }
+
+    if (description !== undefined) {
+        data.description = description;
+    }
+
+    /* ---------- SUB CATEGORY UPDATE ---------- */
 
     if (subCategoryId !== undefined) {
-        const existedSubCategory = await SubCategory.findById(subCategoryId)
+        const existedSubCategory = await SubCategory.findById(subCategoryId);
 
         if (!existedSubCategory) {
-            throw new ApiError(404, "Sub category not found!")
+            throw new ApiError(404, "Sub category not found!");
         }
-        data.subCategoryID = subCategoryId
+
+        data.subCategoryID = subCategoryId;
     }
 
+    /* ---------- PARTIAL FEATURES UPDATE ---------- */
 
+    if (features !== undefined) {
 
+        if (typeof features !== "object" || Array.isArray(features)) {
+            throw new ApiError(400, "Features must be an object");
+        }
+
+        // merge incoming features with existing ones
+        const mergedFeatures = {
+            ...existedProduct.features.toObject(),
+            ...features
+        };
+
+        // validate final merged features
+        if (
+            !mergedFeatures.material ||
+            !mergedFeatures.color ||
+            !mergedFeatures.height ||
+            !mergedFeatures.width ||
+            !mergedFeatures.length
+        ) {
+            throw new ApiError(
+                400,
+                "Features must include material, color, height, width and length"
+            );
+        }
+
+        data.features = mergedFeatures;
+    }
+
+    /* ---------- PREVENT EMPTY UPDATE ---------- */
+
+    if (Object.keys(data).length === 0) {
+        throw new ApiError(400, "No valid fields provided for update");
+    }
+
+    /* ---------- UPDATE PRODUCT ---------- */
 
     const updatedProduct = await Product.findByIdAndUpdate(
         existedProduct._id,
-        {
-            $set: data
-        },
-        {
-            new: true
-        }
-    )
+        { $set: data },
+        { new: true }
+    );
 
-    return res
-        .status(200)
-        .json(new ApiResponse(200, updatedProduct, "Product details updated successfully!"))
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            updatedProduct,
+            "Product updated successfully!"
+        )
+    );
+});
 
-})
+
+
 
 const addMedia = asyncHandler(async (req, res) => {
     const { productId } = req.params
@@ -354,7 +656,7 @@ const replaceMedia = asyncHandler(async (req, res) => {
     }
 
 
-    const mediaDelete = await deleteOnCloudinary(publicId,mediaType)
+    const mediaDelete = await deleteOnCloudinary(publicId, mediaType)
 
     if (!mediaDelete || mediaDelete.result !== "ok") {
         throw new ApiError(400, "Media deletion failed!")
@@ -372,67 +674,59 @@ const replaceMedia = asyncHandler(async (req, res) => {
 })
 
 
-const getProductById = asyncHandler(async(req,res) => {
-    const {productId} = req.params
+const getProductById = asyncHandler(async (req, res) => {
+    const { productId } = req.params
 
     const product = await Product.findById(
         productId
     )
 
-    if(!product){
-        throw new ApiError(404,"Product not found!")
+    if (!product) {
+        throw new ApiError(404, "Product not found!")
     }
 
     return res
-    .status(200)
-    .json(new ApiResponse(200,product,"Product fetched successfully!"))
+        .status(200)
+        .json(new ApiResponse(200, product, "Product fetched successfully!"))
 })
 
 
-const getProducts = asyncHandler(async(req,res) => {
+const getProducts = asyncHandler(async (req, res) => {
     const products = await Product.find()
 
-    if(!products){
-        throw new ApiError(404,"Products not found!")
+    if (!products) {
+        throw new ApiError(404, "Products not found!")
 
     }
 
     return res
-    .status(200)
-    .json(new ApiResponse(200,products,"Products fetched successfully!"))
+        .status(200)
+        .json(new ApiResponse(200, products, "Products fetched successfully!"))
 })
 
-const getProductsBySubCategory = asyncHandler(async(req,res) => {
-    const {subCategoryId} = req.params
+const getProductsBySubCategory = asyncHandler(async (req, res) => {
+    const { subCategoryId } = req.params
 
     const subCategory = await SubCategory.findById(subCategoryId)
 
-    if(!subCategory){
-        throw new ApiError(404,"Sub category not found!")
+    if (!subCategory) {
+        throw new ApiError(404, "Sub category not found!")
     }
 
     const products = await Product.find({
-        subCategoryID:subCategoryId
+        subCategoryID: subCategoryId
     })
 
-    if(products.length===0){
-        throw new ApiError(404,"Products not found!")
+    if (products.length === 0) {
+        throw new ApiError(404, "Products not found!")
     }
 
     return res
-    .status(200)
-    .json(new ApiResponse(200,products,"Products fetched sub category wise successfully!"))
+        .status(200)
+        .json(new ApiResponse(200, products, "Products fetched sub category wise successfully!"))
 })
 
 export {
-    createProduct,
-    updateProduct,
-    deleteProduct,
-    addMedia,
-    removeMedia,
-    replaceMedia,
-    getProductById,
-    getProducts,
-    getProductsBySubCategory
-
+    createProduct, updateProduct, deleteProduct, addMedia, removeMedia, replaceMedia, getProductById, getProducts, getProductsBySubCategory
 }
+
