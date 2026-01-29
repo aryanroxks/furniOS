@@ -42,8 +42,10 @@ router.route("/:productId/replace-media")
 router.route("/update-product/:productId").patch(verifyJWT,authorizeRoles(roles.admin),updateProduct)
 router.route("/:productId/remove-media").delete(verifyJWT,authorizeRoles(roles.admin),removeMedia)
 router.route("/delete-product/:productId").delete(verifyJWT, authorizeRoles(roles.admin), deleteProduct)
+// router.route("/").get(filterProducts)
 
 router.route("/").get(getProducts)
+
 router.route("/:productId").get(getProductById)
 router.route("/subcategory/:subCategoryId/").get(verifyJWT,authorizeRoles(roles.admin,roles.retail_customer,roles.wholesale_customer),getProductsBySubCategory)
 

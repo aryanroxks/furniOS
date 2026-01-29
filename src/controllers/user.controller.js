@@ -6,6 +6,8 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
 import mongoose from "mongoose";
 import { Role } from "../models/role.model.js"
+import otpStore from "../utils/otpStore.js"
+import { sendEmailOTP } from "../utils/nodemailer.js"
 
 
 const generateAccessAndRefereshTokens = async (userId) => {
@@ -34,6 +36,10 @@ const registerWholesaleUser = asyncHandler(async (req, res) => {
     await registerUser(req, res, "wholesale_customer");
 });
 
+const registerDeliveryPerson = asyncHandler(async (req, res) => {
+    await registerUser(req, res, "delivery_person");
+});
+
 
 
 const registerUser = async (req, res, roleName) => {
@@ -48,7 +54,7 @@ const registerUser = async (req, res, roleName) => {
     // check for user creation
     // return res
 
-    const { username, email, fullname, password, phone, gender, address, pincode, state, city, street, gstNumber} = req.body
+    const { username, email, fullname, password, phone, gender, address, pincode, state, city, street, gstNumber } = req.body
 
     if (
         [username, email, fullname, password, phone, gender, address, pincode, state, city, street].some((field) => field?.trim() === "")
@@ -78,8 +84,8 @@ const registerUser = async (req, res, roleName) => {
         throw new ApiError(404, "Invalid role!")
     }
 
-    if(roleName === "wholesale_customer" && !gstNumber){
-        throw new ApiError(400,"GST number is required for wholesale users")
+    if (roleName === "wholesale_customer" && !gstNumber) {
+        throw new ApiError(400, "GST number is required for wholesale users")
     }
 
     const user = await User.create({
@@ -95,7 +101,7 @@ const registerUser = async (req, res, roleName) => {
         state,
         pincode,
         roleID: existedRole._id,
-        gstNumber: gstNumber || ""
+        gstNumber: gstNumber ?? null
     })
 
     const createdUser = await User.findById(user._id).select(
@@ -269,38 +275,264 @@ const getCurrentUser = asyncHandler(async (req, res) => {
         ))
 })
 
-const updateAccountDetails = asyncHandler(async (req, res) => {
-    const { email, fullname, phone, gender, address, pincode, state, city, street } = req.body
+const getAllUsers = asyncHandler(async (req, res) => {
+    const { search, role } = req.query;
 
-    if (!fullname || !email || !phone || !gender || !address || !pincode || !state || !city || !street) {
-        throw new ApiError(400, "All fields are required")
+    let filter = {};
+
+    // 🔍 Search by username or email
+    if (search) {
+        filter.$or = [
+            { username: { $regex: search, $options: "i" } },
+            { email: { $regex: search, $options: "i" } },
+        ];
     }
 
-    const user = await User.findByIdAndUpdate(
-        req.user?._id,
-        {
-            $set: {
-                email,
-                fullname,
-                phone,
-                gender,
-                address,
-                pincode,
-                street,
-                city,
-                state
-            }
-        },
-        {
-            new:true
-        }
-    ).select("-password")
+    // 🎭 Filter by role
+    if (role) {
+        filter.roleID = role;
+    }
+
+    const users = await User.find(filter);
 
     return res
         .status(200)
-        .json(new ApiResponse(200, user, "Account details updated successfully!"))
+        .json(new ApiResponse(200, users, "Users fetched successfully"));
+});
 
+const getUserById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const user = await User.findById(id).select("-password");
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "User fetched successfully"));
+});
+
+const deleteUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const user = await User.findById(id);
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  await User.findByIdAndDelete(id);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "User deleted successfully"));
+});
+
+
+// const updateAccountDetails = asyncHandler(async (req, res) => {
+//     const { email, fullname, phone, gender, address, pincode, state, city, street } = req.body
+
+//     if (!fullname || !email || !phone || !gender || !address || !pincode || !state || !city || !street) {
+//         throw new ApiError(400, "All fields are required")
+//     }
+
+//     const user = await User.findByIdAndUpdate(
+//         req.user?._id,
+//         {
+//             $set: {
+//                 email,
+//                 fullname,
+//                 phone,
+//                 gender,
+//                 address,
+//                 pincode,
+//                 street,
+//                 city,
+//                 state
+//             }
+//         },
+//         {
+//             new:true
+//         }
+//     ).select("-password")
+
+//     return res
+//         .status(200)
+//         .json(new ApiResponse(200, user, "Account details updated successfully!"))
+
+// })
+
+
+
+const updateProfileRequest = asyncHandler(async (req, res) => {
+    const {
+        email,
+        phone,
+        fullname,
+        gender,
+        address,
+        pincode,
+        state,
+        city,
+        street
+    } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) throw new ApiError(404, "User not found");
+
+    let otpRequired = false;
+
+    // 🔹 EMAIL PRE-CHECK
+    if (email && email !== user.email) {
+        const emailExists = await User.findOne({ email });
+
+        if (emailExists) {
+            throw new ApiError(409, "Email already exists");
+        }
+
+        // 🔹 OTP LOGIC
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        otpStore.set(req.user._id.toString(), {
+            otp,
+            newEmail: email,
+            expiresAt: Date.now() + 10 * 60 * 1000
+        });
+
+        await sendEmailOTP(email, otp);
+        otpRequired = true;
+    }
+
+    // 🔹 Update other fields
+    await User.findByIdAndUpdate(req.user._id, {
+        $set: {
+            fullname,
+            phone,
+            gender,
+            address,
+            pincode,
+            street,
+            city,
+            state
+        }
+    });
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            { otpRequired },
+            otpRequired
+                ? "OTP sent to email"
+                : "Profile updated successfully"
+        )
+    );
+});
+
+
+
+const verifyEmailOTP = asyncHandler(async (req, res) => {
+    const { otp } = req.body
+
+    const stored = otpStore.get(req.user._id.toString())
+
+    if (Date.now() > stored.expiresAt) {
+        otpStore.delete(req.user._id.toString())
+        throw new ApiError(400, "OTP expired")
+    }
+
+    if (!stored) {
+        throw new ApiError(400, "No email verification pending")
+    }
+
+    if (stored.otp !== otp) {
+        throw new ApiError(400, "Invalid OTP")
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { email: stored.newEmail },
+        { new: true }
+    ).select("-password")
+
+    otpStore.delete(req.user._id.toString())
+
+    return res.status(200).json(
+        new ApiResponse(200, user, "Email updated successfully")
+    )
 })
+
+
+const forgotPasswordRequest = asyncHandler(async (req, res) => {
+    const { email } = req.body
+
+    if (!email) {
+        throw new ApiError(400, "Email is required")
+    }
+
+    const user = await User.findOne({ email })
+
+    if (!user) {
+        throw new ApiError(404, "User not found with this email")
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+
+    otpStore.set(`forgot_${email}`, {
+        otp,
+        userId: user._id,
+        expiresAt: Date.now() + 10 * 60 * 1000 // 10 min
+    })
+
+    await sendEmailOTP(email, otp)
+
+    return res.status(200).json(
+        new ApiResponse(200, {}, "OTP sent to email")
+    )
+})
+
+
+const verifyForgotPasswordOTP = asyncHandler(async (req, res) => {
+    const { email, otp, newPassword } = req.body
+
+    if (!email || !otp || !newPassword) {
+        throw new ApiError(400, "All fields are required")
+    }
+
+    const stored = otpStore.get(`forgot_${email}`)
+
+    if (!stored) {
+        throw new ApiError(400, "OTP expired or invalid")
+    }
+
+    if (Date.now() > stored.expiresAt) {
+        otpStore.delete(`forgot_${email}`)
+        throw new ApiError(400, "OTP expired")
+    }
+
+    if (stored.otp !== otp.toString()) {
+        throw new ApiError(400, "Invalid OTP")
+    }
+
+    const user = await User.findById(stored.userId)
+
+    if (!user) {
+        throw new ApiError(404, "User not found")
+    }
+
+    // 🔥 THIS triggers pre("save")
+    user.password = newPassword
+    await user.save()
+
+    otpStore.delete(`forgot_${email}`)
+
+    return res.status(200).json(
+        new ApiResponse(200, null, "Password reset successfully")
+    )
+})
+
 
 
 export {
@@ -312,6 +544,14 @@ export {
     refreshAccessToken,
     changeCurrentPassword,
     getCurrentUser,
-    updateAccountDetails
+    // updateAccountDetails,
+    registerDeliveryPerson,
+    verifyEmailOTP,
+    updateProfileRequest,
+    forgotPasswordRequest,
+    verifyForgotPasswordOTP,
+    getAllUsers,
+    deleteUser,
+    getUserById
 }
 

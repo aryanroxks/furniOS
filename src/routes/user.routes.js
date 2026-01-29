@@ -1,23 +1,59 @@
-import {Router} from "express";
+import { Router } from "express";
 
-import {upload} from "../middlewares/multer.middleware.js"
-import {verifyJWT} from "../middlewares/auth.middleware.js"
-import {changeCurrentPassword, getCurrentUser, logInUser, logOutUser, refreshAccessToken, registerRetailUser,registerWholesaleUser,updateAccountDetails} from "../controllers/user.controller.js"
+import { upload } from "../middlewares/multer.middleware.js"
+import { verifyJWT } from "../middlewares/auth.middleware.js"
+import { changeCurrentPassword, getCurrentUser, logInUser, logOutUser, updateProfileRequest, deleteUser, verifyEmailOTP, refreshAccessToken, registerRetailUser, registerWholesaleUser, registerDeliveryPerson, forgotPasswordRequest, verifyForgotPasswordOTP, getAllUsers, getUserById } from "../controllers/user.controller.js"
+import { authorizeRoles } from "../middlewares/authorizeRoles.middleware.js";
+import { roles } from "../constants.js"
 
 const router = Router();
 
 router.route("/register/retail-customer").post(registerRetailUser)
 router.route("/register/wholesale-customer").post(registerWholesaleUser)
+router.route("/register/delivery-person").post(verifyJWT, authorizeRoles(roles.admin), registerDeliveryPerson)
 router.route("/login").post(logInUser)
+// SECURED
+router.route("/all").get(
+  verifyJWT,
+  authorizeRoles(roles.admin),
+  getAllUsers
+);
 
+router.route("/:id").get(
+  verifyJWT,
+  authorizeRoles(roles.admin),
+  getUserById
+);
 
-//SECURED 
+router.delete("/:id", deleteUser);
+
 router.route("/refresh-token").post(refreshAccessToken)
-router.route("/logout").post(verifyJWT,logOutUser)
+router.route("/logout").post(verifyJWT, logOutUser)
 router.route("/refresh-token").post(refreshAccessToken)
-router.route("/change-password").post(verifyJWT,changeCurrentPassword)
-router.route("/current-user").get(verifyJWT,getCurrentUser)
-router.route("/update-account").patch(verifyJWT,updateAccountDetails)
+router.route("/change-password").post(verifyJWT, changeCurrentPassword)
+// router.route("/current-user").get(verifyJWT, getCurrentUser)
+// router.route("/update-account").patch(verifyJWT,updateAccountDetails)
+// PROFILE UPDATE WITH EMAIL OTP
+router.route("/update-profile").patch(
+  verifyJWT,
+  updateProfileRequest
+)
+
+router.route("/verify-email-otp").post(
+  verifyJWT,
+  verifyEmailOTP
+)
+
+router.post(
+  "/forgot-password",
+  forgotPasswordRequest
+)
+
+// Reset password using OTP
+router.post(
+  "/reset-password",
+  verifyForgotPasswordOTP
+)
 
 
 

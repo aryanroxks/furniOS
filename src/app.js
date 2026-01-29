@@ -30,7 +30,9 @@ import subCategoryRouter from "./routes/subCategory.routes.js"
 import productRouter from "./routes/products.routes.js"
 import wishlistRouter from "./routes/wishlist.routes.js"
 import cartRouter from "./routes/cart.routes.js"
-
+import orderRouter from "./routes/orders.routes.js"
+import deliveryPersonRouter from "./routes/delivery_person.routes.js"
+import paymentRouter from "./routes/payments.routes.js"
 
 
 app.use("/api/v1/users",userRouter)
@@ -40,6 +42,10 @@ app.use("/api/v1/subcategories",subCategoryRouter)
 app.use("/api/v1/products",productRouter)
 app.use("/api/v1/wishlists",wishlistRouter)
 app.use("/api/v1/carts",cartRouter)
+app.use("/api/v1/orders",orderRouter)
+app.use("/api/v1/delivery-persons", deliveryPersonRouter);
+app.use("/api/v1/payments", paymentRouter);
+
 
 
 
@@ -52,6 +58,19 @@ app.use((err, req, res, next) => {
 });
 
 
+// app.use((err, req, res, next) => {
+//   if (process.env.NODE_ENV === "development") {
+//     // Let Express handle it
+//     return next(err);
+//   }
+
+//   // Production → JSON
+//   res.status(err.statusCode || 500).json({
+//     success: false,
+//     message: err.message,
+//     errors: err.errors || []
+//   });
+// });
 
 
 

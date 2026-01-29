@@ -6,6 +6,7 @@ import { isValidObjectId } from "mongoose";
 import { Product } from "../models/products.model.js";
 import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js";
 import { SubCategory } from "../models/sub_category.model.js";
+import mongoose from "mongoose";
 
 
 
@@ -690,19 +691,27 @@ const getProductById = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, product, "Product fetched successfully!"))
 })
 
-
 const getProducts = asyncHandler(async (req, res) => {
-    const products = await Product.find()
+  const { subcategory } = req.query;
 
-    if (!products) {
-        throw new ApiError(404, "Products not found!")
+  const filter = {};
 
+  if (subcategory) {
+    if (!mongoose.isValidObjectId(subcategory)) {
+      throw new ApiError(400, "Invalid subcategory id");
     }
+    filter.subCategoryID = subcategory;
+  }
 
-    return res
-        .status(200)
-        .json(new ApiResponse(200, products, "Products fetched successfully!"))
-})
+  const products = await Product.find(filter)
+    .populate("subCategoryID", "name"); // ✅ images preserved
+
+  return res.status(200).json(
+    new ApiResponse(200, products, "Products fetched successfully")
+  );
+});
+
+
 
 const getProductsBySubCategory = asyncHandler(async (req, res) => {
     const { subCategoryId } = req.params
@@ -726,7 +735,35 @@ const getProductsBySubCategory = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, products, "Products fetched sub category wise successfully!"))
 })
 
+// const filterProducts = asyncHandler(async (req, res) => {
+//   const { subcategory } = req.query;
+
+//   const filter = {};
+
+//   // 🔹 Filter by subcategory (from navbar click)
+//   if (subcategory) {
+//     if (!mongoose.isValidObjectId(subcategory)) {
+//       throw new ApiError(400, "Invalid subcategory id");
+//     }
+
+//     filter.subCategoryID = subcategory;
+//   }
+
+//   const products = await Product.find(filter)
+//     .populate("subCategoryID", "name")
+//     .select("_id name price primaryImage");
+
+//   return res.status(200).json(
+//     new ApiResponse(
+//       200,
+//       products,
+//       "Products fetched successfully"
+//     )
+//   );
+// });
+
+
 export {
-    createProduct, updateProduct, deleteProduct, addMedia, removeMedia, replaceMedia, getProductById, getProducts, getProductsBySubCategory
+     createProduct, updateProduct, deleteProduct, addMedia, removeMedia, replaceMedia, getProductById, getProducts, getProductsBySubCategory
 }
 
