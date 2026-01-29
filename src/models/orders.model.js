@@ -94,6 +94,9 @@ const orderSchema = new Schema(
     orderedAt: {
       type: Date,
       default: Date.now
+    },
+    deliveredAt: {
+      type: Date,
     }
   },
   {

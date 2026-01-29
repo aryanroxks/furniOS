@@ -3,6 +3,14 @@ import {verifyJWT} from "../middlewares/auth.middleware.js"
 import { authorizeRoles } from "../middlewares/authorizeRoles.middleware.js";
 import { roles } from "../constants.js";
 import { assignOrder, createOrder, getAllOrders, getFilteredOrders, getMyOrders, getOrder, markOrderDelivered, orderStatus, reassignOrder ,cancelOrder} from "../controllers/orders.controller.js";
+import {
+  createOrderReturn,
+  getMyReturnsWithItems,
+  getReturnDetails,
+  cancelReturnRequest,
+  adminGetAllReturns,
+  updateReturnStatus
+} from "../controllers/orders_return.controller.js";
 
 const router=Router();
 
@@ -25,6 +33,40 @@ router.route("/:orderId/delivered").patch(verifyJWT,authorizeRoles(roles.admin),
 router.route("/:orderId/reassign-order").patch(verifyJWT,authorizeRoles(roles.admin),reassignOrder);
 
 
+
+//return
+
+router
+  .route("/:orderId/return")
+  .post(verifyJWT ,createOrderReturn);
+
+router
+  .route("/returns/my")
+  .get(verifyJWT, getMyReturnsWithItems);
+
+router
+  .route("/returns/:returnId")
+  .get(verifyJWT, getReturnDetails);
+
+router
+  .route("/returns/:returnId/cancel")
+  .patch(verifyJWT, cancelReturnRequest);
+
+router
+  .route("/admin/returns")
+  .get(
+    verifyJWT,
+    authorizeRoles(roles.admin),
+    adminGetAllReturns
+  );
+
+router
+  .route("/admin/returns/:returnId/status")
+  .patch(
+    verifyJWT,
+    authorizeRoles(roles.admin),
+    updateReturnStatus
+  );
 
 
 export default router

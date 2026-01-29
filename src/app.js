@@ -33,6 +33,10 @@ import cartRouter from "./routes/cart.routes.js"
 import orderRouter from "./routes/orders.routes.js"
 import deliveryPersonRouter from "./routes/delivery_person.routes.js"
 import paymentRouter from "./routes/payments.routes.js"
+import purchaseRouter from "./routes/purchase.routes.js"
+import vendorRouter from "./routes/vendor.routes.js"
+import rawMaterialRouter from "./routes/raw_material.routes.js"
+
 
 
 app.use("/api/v1/users",userRouter)
@@ -45,6 +49,11 @@ app.use("/api/v1/carts",cartRouter)
 app.use("/api/v1/orders",orderRouter)
 app.use("/api/v1/delivery-persons", deliveryPersonRouter);
 app.use("/api/v1/payments", paymentRouter);
+app.use("/api/v1/purchases",purchaseRouter)
+app.use("/api/v1/vendors",vendorRouter)
+app.use("/api/v1/raw-materials",rawMaterialRouter)
+
+
 
 
 
