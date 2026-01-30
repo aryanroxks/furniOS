@@ -89,16 +89,19 @@ const deleteCategory = asyncHandler(async (req, res) => {
 
 
 const getCategories = asyncHandler(async (req, res) => {
-    const categories = await Category.find()
+  const { search } = req.query;
 
-    // if(!categories){
-    //     throw new ApiError(404,"Categories not found!")
-    // }
+  const query = search
+    ? { name: { $regex: search, $options: "i" } }
+    : {};
 
-    return res
-        .status(200)
-        .json(new ApiResponse(200, categories, "All categories fetched successfully!"))
-})
+  const categories = await Category.find(query);
+
+  res.status(200).json(
+    new ApiResponse(200, categories, "Fetched successfully")
+  );
+});
+
 
 const getCategoryById = asyncHandler(async (req, res) => {
     const { categoryId } = req.params;
@@ -258,6 +261,21 @@ const getSubCategoryById = asyncHandler(async (req, res) => {
         );
 });
 
+const getAllSubCategories = asyncHandler(async (req, res) => {
+    const subCategories = await SubCategory.find()
+        .populate("categoryID", "name")
+        .sort({ name: 1 });
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                subCategories,
+                "All sub categories fetched successfully"
+            )
+        );
+});
 
 
 
@@ -271,6 +289,7 @@ export {
     updateSubCategory,
     deleteSubCategory,
     getSubCategories,
-    getSubCategoryById
+    getSubCategoryById,
+    getAllSubCategories
 
 }

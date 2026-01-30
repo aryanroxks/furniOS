@@ -7,7 +7,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { PurchaseDetail } from "../models/purchase_details.model.js";
 
-export const createPurchase = asyncHandler(async (req, res) => {
+ const createPurchase = asyncHandler(async (req, res) => {
     const { vendorId, purchaseDate, items } = req.body;
 
     // 1️⃣ Basic validations

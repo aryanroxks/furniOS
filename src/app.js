@@ -36,6 +36,8 @@ import paymentRouter from "./routes/payments.routes.js"
 import purchaseRouter from "./routes/purchase.routes.js"
 import vendorRouter from "./routes/vendor.routes.js"
 import rawMaterialRouter from "./routes/raw_material.routes.js"
+import productionRouter from "./routes/production.routes.js"
+
 
 
 
@@ -52,6 +54,7 @@ app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/purchases",purchaseRouter)
 app.use("/api/v1/vendors",vendorRouter)
 app.use("/api/v1/raw-materials",rawMaterialRouter)
+app.use("/api/v1/productions",productionRouter)
 
 
 

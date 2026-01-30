@@ -1,10 +1,6 @@
 import { Router } from "express";
-import {
-
-} from "../controllers/rawMaterial.controller.js";
-
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { authorizeRoles } from "../middlewares/role.middleware.js";
+import { authorizeRoles } from "../middlewares/authorizeRoles.middleware.js";
 import { roles } from "../constants.js";
 import {
     deleteRawMaterial, createRawMaterial,

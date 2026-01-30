@@ -2,7 +2,7 @@ import { Router } from "express";
 
 import { upload } from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js"
-import { changeCurrentPassword, getCurrentUser, logInUser, logOutUser, updateProfileRequest, deleteUser, verifyEmailOTP, refreshAccessToken, registerRetailUser, registerWholesaleUser, registerDeliveryPerson, forgotPasswordRequest, verifyForgotPasswordOTP, getAllUsers, getUserById } from "../controllers/user.controller.js"
+import { changeCurrentPassword, adminUpdateUser,getCurrentUser, logInUser, logOutUser, updateProfileRequest, deleteUser, verifyEmailOTP, refreshAccessToken, registerRetailUser, registerWholesaleUser, registerDeliveryPerson, forgotPasswordRequest, verifyForgotPasswordOTP, getAllUsers, getUserById } from "../controllers/user.controller.js"
 import { authorizeRoles } from "../middlewares/authorizeRoles.middleware.js";
 import { roles } from "../constants.js"
 
@@ -12,6 +12,8 @@ router.route("/register/retail-customer").post(registerRetailUser)
 router.route("/register/wholesale-customer").post(registerWholesaleUser)
 router.route("/register/delivery-person").post(verifyJWT, authorizeRoles(roles.admin), registerDeliveryPerson)
 router.route("/login").post(logInUser)
+router.route("/current-user").get(verifyJWT, getCurrentUser)
+
 // SECURED
 router.route("/all").get(
   verifyJWT,
@@ -19,19 +21,11 @@ router.route("/all").get(
   getAllUsers
 );
 
-router.route("/:id").get(
-  verifyJWT,
-  authorizeRoles(roles.admin),
-  getUserById
-);
 
-router.delete("/:id", deleteUser);
 
 router.route("/refresh-token").post(refreshAccessToken)
 router.route("/logout").post(verifyJWT, logOutUser)
-router.route("/refresh-token").post(refreshAccessToken)
 router.route("/change-password").post(verifyJWT, changeCurrentPassword)
-// router.route("/current-user").get(verifyJWT, getCurrentUser)
 // router.route("/update-account").patch(verifyJWT,updateAccountDetails)
 // PROFILE UPDATE WITH EMAIL OTP
 router.route("/update-profile").patch(
@@ -57,6 +51,22 @@ router.post(
 
 
 
+router.route("/:id").get(
+  verifyJWT,
+  authorizeRoles(roles.admin),
+  getUserById
+);
+
+router.patch(
+  "/admin/:id",
+  verifyJWT,
+  authorizeRoles(roles.admin),
+  adminUpdateUser
+);
+
+
+
+router.route("/:id").delete(verifyJWT,authorizeRoles(roles.admin),deleteUser)
 
 
 export default router

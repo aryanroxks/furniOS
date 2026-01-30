@@ -2,7 +2,7 @@ import {Router} from "express";
 // import {upload} from "../middlewares/multer.middleware.js"
 import {verifyJWT} from "../middlewares/auth.middleware.js"
 import { authorizeRoles } from "../middlewares/authorizeRoles.middleware.js";
-import { createCategory, deleteCategory, getCategories, updateCategory, getCategoryById, createSubCategory, getSubCategories} from "../controllers/categoryAndSubCategory.controller.js";
+import { createCategory, deleteCategory, getCategories, updateCategory, getCategoryById, getAllSubCategories,createSubCategory, getSubCategories} from "../controllers/categoryAndSubCategory.controller.js";
 import { roles } from "../constants.js";
 
 const router=Router();
@@ -13,6 +13,9 @@ router.route("/create-category").post(verifyJWT,authorizeRoles(roles.admin),crea
 router.route("/update-category/:categoryId").patch(verifyJWT,authorizeRoles(roles.admin),updateCategory)
 router.route("/delete-category/:categoryId").delete(verifyJWT,authorizeRoles(roles.admin),deleteCategory)
 router.route("/").get(getCategories)
+router.route("/subcategories/all")
+    .get(verifyJWT, authorizeRoles(roles.admin), getAllSubCategories);
+
 router.route("/:categoryId").get(verifyJWT,authorizeRoles(roles.admin),getCategoryById)
 
 

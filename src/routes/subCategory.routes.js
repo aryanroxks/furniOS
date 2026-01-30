@@ -4,7 +4,7 @@ import {upload} from "../middlewares/multer.middleware.js"
 import {verifyJWT} from "../middlewares/auth.middleware.js"
 import { authorizeRoles } from "../middlewares/authorizeRoles.middleware.js";
 import { roles } from "../constants.js";
-import { deleteSubCategory, getSubCategoryById, updateSubCategory } from "../controllers/categoryAndSubCategory.controller.js";
+import { deleteSubCategory, getSubCategoryById, updateSubCategory,getAllSubCategories } from "../controllers/categoryAndSubCategory.controller.js";
 
 
 const router = Router();

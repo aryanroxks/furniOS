@@ -106,7 +106,8 @@ import mongoose from "mongoose";
 
 const createProduct = asyncHandler(async (req, res) => {
 
-    const { subCategoryId, name, description, price, features } = req.body;
+    const { subCategoryId, name, description, price } = req.body;
+const features = JSON.parse(req.body.features);
 
     /* ---------- BASIC VALIDATION ---------- */
 
@@ -137,8 +138,7 @@ const createProduct = asyncHandler(async (req, res) => {
 
     /* ---------- IMAGE VALIDATION ---------- */
 
-    const imageNames = req.body.imageNames;
-
+const imageNames = JSON.parse(req.body.imageNames);
     if (!req.files?.images || req.files.images.length === 0) {
         throw new ApiError(400, "At least one image is required!");
     }
@@ -454,7 +454,11 @@ const updateProduct = asyncHandler(async (req, res) => {
 
 const addMedia = asyncHandler(async (req, res) => {
     const { productId } = req.params
-    const imageNames = req.body.imageNames || []
+    // const imageNames = req.body.imageNames || []
+    const imageNames = req.body.imageNames
+        ? JSON.parse(req.body.imageNames)
+        : []
+
 
     const product = await Product.findById(productId)
     if (!product) {
@@ -676,39 +680,39 @@ const replaceMedia = asyncHandler(async (req, res) => {
 
 
 const getProductById = asyncHandler(async (req, res) => {
-    const { productId } = req.params
+    const { productId } = req.params;
 
-    const product = await Product.findById(
-        productId
-    )
+    const product = await Product.findById(productId)
+        .populate("subCategoryID", "name categoryID"); // ✅ FIX
 
     if (!product) {
-        throw new ApiError(404, "Product not found!")
+        throw new ApiError(404, "Product not found!");
     }
 
-    return res
-        .status(200)
-        .json(new ApiResponse(200, product, "Product fetched successfully!"))
-})
+    return res.status(200).json(
+        new ApiResponse(200, product, "Product fetched successfully!")
+    );
+});
+
 
 const getProducts = asyncHandler(async (req, res) => {
-  const { subcategory } = req.query;
+    const { subcategory } = req.query;
 
-  const filter = {};
+    const filter = {};
 
-  if (subcategory) {
-    if (!mongoose.isValidObjectId(subcategory)) {
-      throw new ApiError(400, "Invalid subcategory id");
+    if (subcategory) {
+        if (!mongoose.isValidObjectId(subcategory)) {
+            throw new ApiError(400, "Invalid subcategory id");
+        }
+        filter.subCategoryID = subcategory;
     }
-    filter.subCategoryID = subcategory;
-  }
 
-  const products = await Product.find(filter)
-    .populate("subCategoryID", "name"); // ✅ images preserved
+    const products = await Product.find(filter)
+        .populate("subCategoryID", "name"); // ✅ images preserved
 
-  return res.status(200).json(
-    new ApiResponse(200, products, "Products fetched successfully")
-  );
+    return res.status(200).json(
+        new ApiResponse(200, products, "Products fetched successfully")
+    );
 });
 
 
@@ -764,6 +768,6 @@ const getProductsBySubCategory = asyncHandler(async (req, res) => {
 
 
 export {
-     createProduct, updateProduct, deleteProduct, addMedia, removeMedia, replaceMedia, getProductById, getProducts, getProductsBySubCategory
+    createProduct, updateProduct, deleteProduct, addMedia, removeMedia, replaceMedia, getProductById, getProducts, getProductsBySubCategory
 }
 

@@ -101,7 +101,7 @@ const registerUser = async (req, res, roleName) => {
         state,
         pincode,
         roleID: existedRole._id,
-        gstNumber: gstNumber ?? null
+        gstNumber: gstNumber || null
     })
 
     const createdUser = await User.findById(user._id).select(
@@ -534,6 +534,52 @@ const verifyForgotPasswordOTP = asyncHandler(async (req, res) => {
 })
 
 
+const adminUpdateUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const {
+    fullname,
+    phone,
+    gender,
+    address,
+    street,
+    city,
+    state,
+    pincode,
+    roleID,
+    gstNumber
+  } = req.body;
+
+  const user = await User.findById(id);
+  if (!user) throw new ApiError(404, "User not found");
+
+  await User.findByIdAndUpdate(id, {
+    $set: {
+      fullname,
+      phone,
+      gender,
+      address,
+      street,
+      city,
+      state,
+      pincode,
+      roleID,
+      gstNumber
+    },
+    
+  },{
+            runValidators:true
+  }
+
+);
+
+  return res.status(200).json(
+    new ApiResponse(200, null, "User updated successfully")
+  );
+});
+
+
+
+
 
 export {
     registerRetailUser,
@@ -552,6 +598,7 @@ export {
     verifyForgotPasswordOTP,
     getAllUsers,
     deleteUser,
-    getUserById
+    getUserById,
+    adminUpdateUser
 }
 
