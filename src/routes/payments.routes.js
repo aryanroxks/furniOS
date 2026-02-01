@@ -2,16 +2,24 @@ import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/authorizeRoles.middleware.js";
 import { roles } from "../constants.js";
-import { createPayment } from "../controllers/payments.controller.js";
+import { createPayment,verifyPayment ,markPaymentSuccess} from "../controllers/payments.controller.js";
 
-const router = Router();
+const   router = Router();
 
 // COD payment
 router.post(
   "/payment",
-  verifyJWT,
-  authorizeRoles(roles.retail_customer),
+  verifyJWT,  
   createPayment
 );
+
+router.post("/verify", (req, res, next) => {
+  console.log("VERIFY ROUTE HIT");
+  next();
+}, verifyPayment);
+
+router.post("/success", markPaymentSuccess);
+
+
 
 export default router;

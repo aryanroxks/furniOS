@@ -11,8 +11,93 @@ import { OrderDetail } from "../models/orders_details.model.js";
 
 
 
-const createOrder = asyncHandler(async (req, res) => {
+// const createOrder = asyncHandler(async (req, res) => {
 
+//     const { items, deliveryAddress1, deliveryAddress2 } = req.body;
+
+//     if (!deliveryAddress1) {
+//         throw new ApiError(400, "Delivery address is compulsory");
+//     }
+
+//     if (!Array.isArray(items) || items.length === 0) {
+//         throw new ApiError(400, "Order must contain at least one item");
+//     }
+
+//     let subTotal = 0;
+//     const orderProducts = [];
+
+//     // 1️⃣ Validate & calculate
+//     for (const item of items) {
+//         if (!mongoose.Types.ObjectId.isValid(item.productID)) {
+//             throw new ApiError(400, "Invalid product ID");
+//         }
+
+//         const qty = Number(item.quantity);
+//         if (!qty || qty < 1 || qty > 5) {
+//             throw new ApiError(400, "Invalid quantity");
+//         }
+
+//         const product = await Product.findById(item.productID);
+//         if (!product) {
+//             throw new ApiError(404, "Product not found");
+//         }
+
+//         if (qty > product.stock) {
+//             throw new ApiError(400, `${product.name} out of stock`);
+//         }
+
+//         subTotal += product.price * qty;
+
+//         orderProducts.push({
+//             product,
+//             quantity: qty
+//         });
+//     }
+
+//     // 2️⃣ Pricing
+//     const GST_RATE = 0.18;
+//     const CGST = subTotal * 0.09;
+//     const SGST = subTotal * 0.09;
+//     const shippingCharge = 500;
+//     const total = subTotal + CGST + SGST + shippingCharge;
+
+//     // 3️⃣ Create order
+//     const order = await Order.create({
+//         userID: req.user._id,
+//         products: orderProducts.map(item => ({
+//             productID: item.product._id,
+//             name: item.product.name,
+//             quantity: item.quantity,
+//             price: item.product.price
+//         })),
+//         CGST,
+//         SGST,
+//         shippingCharge,
+//         deliveryAddress1,
+//         deliveryAddress2,
+//         status: "PLACED",
+//         total
+//     });
+
+//     // 4️⃣ Create order_details
+//     for (const item of orderProducts) {
+//         await OrderDetail.create({
+//             orderID: order._id,
+//             productID: item.product._id,
+//             quantity: item.quantity,
+//             price: item.product.price
+//         });
+//     }
+
+//     return res
+//         .status(201)
+//         .json(new ApiResponse(201, order, "Order placed successfully!"));
+// });
+
+
+import { applyBestOffer } from "../utils/applyBestOffer.js";
+
+const createOrder = asyncHandler(async (req, res) => {
     const { items, deliveryAddress1, deliveryAddress2 } = req.body;
 
     if (!deliveryAddress1) {
@@ -26,7 +111,6 @@ const createOrder = asyncHandler(async (req, res) => {
     let subTotal = 0;
     const orderProducts = [];
 
-    // 1️⃣ Validate & calculate
     for (const item of items) {
         if (!mongoose.Types.ObjectId.isValid(item.productID)) {
             throw new ApiError(400, "Invalid product ID");
@@ -46,46 +130,45 @@ const createOrder = asyncHandler(async (req, res) => {
             throw new ApiError(400, `${product.name} out of stock`);
         }
 
-        subTotal += product.price * qty;
+        const { finalPrice, appliedOffer } = await applyBestOffer(product);
+
+        subTotal += finalPrice * qty;
 
         orderProducts.push({
-            product,
-            quantity: qty
+            productID: product._id,
+            name: product.name,
+            quantity: qty,
+            price: product.price,
+            finalUnitPrice: finalPrice,
+            appliedOfferSnapshot: appliedOffer,
         });
     }
 
-    // 2️⃣ Pricing
-    const GST_RATE = 0.18;
     const CGST = subTotal * 0.09;
     const SGST = subTotal * 0.09;
     const shippingCharge = 500;
     const total = subTotal + CGST + SGST + shippingCharge;
 
-    // 3️⃣ Create order
     const order = await Order.create({
         userID: req.user._id,
-        products: orderProducts.map(item => ({
-            productID: item.product._id,
-            name: item.product.name,
-            quantity: item.quantity,
-            price: item.product.price
-        })),
+        products: orderProducts,
         CGST,
         SGST,
         shippingCharge,
         deliveryAddress1,
         deliveryAddress2,
-        status: "PLACED",
-        total
+        total,
     });
 
-    // 4️⃣ Create order_details
+    /* OPTIONAL: OrderDetail (keep in sync) */
     for (const item of orderProducts) {
         await OrderDetail.create({
             orderID: order._id,
-            productID: item.product._id,
+            productID: item.productID,
             quantity: item.quantity,
-            price: item.product.price
+            price: item.price,
+            finalUnitPrice:item.finalUnitPrice,
+            appliedOfferSnapshot:item.appliedOfferSnapshot  
         });
     }
 
@@ -93,6 +176,8 @@ const createOrder = asyncHandler(async (req, res) => {
         .status(201)
         .json(new ApiResponse(201, order, "Order placed successfully!"));
 });
+
+
 
 
 
@@ -252,7 +337,7 @@ const getOrder = asyncHandler(async (req, res) => {
         productsWithImages.push({
             productID: item.productID,
             name: item.name,
-            price: item.price,
+            price: item.finalUnitPrice,
             quantity: item.quantity,
             primaryImage
         });
@@ -310,7 +395,7 @@ const getMyOrders = asyncHandler(async (req, res) => {
             enrichedProducts.push({
                 productID: item.productID,
                 name: item.name,
-                price: item.price,
+                price: item.finalUnitPrice,
                 quantity: item.quantity,
                 primaryImage
             });
@@ -559,55 +644,55 @@ const reassignOrder = asyncHandler(async (req, res) => {
 
 
 
-const cancelOrder = asyncHandler(async (req, res) => {
-    const { orderId } = req.params;
+    const cancelOrder = asyncHandler(async (req, res) => {
+        const { orderId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-        throw new ApiError(400, "Invalid order ID");
-    }
-
-    const order = await Order.findById(orderId);
-    if (!order) {
-        throw new ApiError(404, "Order not found");
-    }
-
-    // 🔐 Authorization check (user can cancel only own order)
-    if (req.user?.roleID.toString() !== roles.admin) {
-        if (order.userID.toString() !== req.user._id.toString()) {
-            throw new ApiError(403, "You are not allowed to cancel this order");
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
+            throw new ApiError(400, "Invalid order ID");
         }
-    }
 
-    // ❌ Invalid cancellation states
-    if (["SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status)) {
-        throw new ApiError(400, "Order cannot be cancelled at this stage");
-    }
-
-    // 🔄 Restore stock ONLY if already deducted
-    if (order.status === "CONFIRMED") {
-        for (const item of order.products) {
-            await Product.findByIdAndUpdate(
-                item.productID,
-                { $inc: { stock: item.quantity } }
-            );
+        const order = await Order.findById(orderId);
+        if (!order) {
+            throw new ApiError(404, "Order not found");
         }
-    }
 
-    // ✅ Cancel order
-    order.status = "CANCELLED";
-    await order.save();
+        // 🔐 Authorization check (user can cancel only own order)
+        if (req.user?.roleID.toString() !== roles.admin) {
+            if (order.userID.toString() !== req.user._id.toString()) {
+                throw new ApiError(403, "You are not allowed to cancel this order");
+            }
+        }
 
-    return res.status(200).json(
-        new ApiResponse(
-            200,
-            {
-                orderId: order._id,
-                status: order.status
-            },
-            "Order cancelled successfully"
-        )
-    );
-});
+        // ❌ Invalid cancellation states
+        if (["SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status)) {
+            throw new ApiError(400, "Order cannot be cancelled at this stage");
+        }
+
+        // 🔄 Restore stock ONLY if already deducted
+        if (order.status === "CONFIRMED") {
+            for (const item of order.products) {
+                await Product.findByIdAndUpdate(
+                    item.productID,
+                    { $inc: { stock: item.quantity } }
+                );
+            }
+        }
+
+        // ✅ Cancel order
+        order.status = "CANCELLED";
+        await order.save();
+
+        return res.status(200).json(
+            new ApiResponse(
+                200,
+                {
+                    orderId: order._id,
+                    status: order.status
+                },
+                "Order cancelled successfully"
+            )
+        );
+    });
 
 
 

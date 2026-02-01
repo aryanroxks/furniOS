@@ -1,3 +1,112 @@
+// import mongoose, { Schema } from "mongoose";
+
+// const orderSchema = new Schema(
+//   {
+//     userID: {
+//       type: Schema.Types.ObjectId,
+//       ref: "User",
+//       required: true
+//     },
+
+//     // snapshot of cart items at order time
+//     products: [
+//       {
+//         productID: {
+//           type: Schema.Types.ObjectId,
+//           ref: "Product",
+//           required: true
+//         },
+//         name: {
+//           type: String, // snapshot (product name at time of order)
+//           required: true
+//         },
+//         quantity: {
+//           type: Number,
+//           required: true,
+//           min: 1
+//         },
+//         price: {
+//           type: Number, // snapshot price
+//           required: true,
+//           min: 0
+//         }
+//       }
+//     ],
+
+//     // taxes
+//     SGST: {
+//       type: Number,
+//       default: 0,
+//       min: 0
+//     },
+//     CGST: {
+//       type: Number,
+//       default: 0,
+//       min: 0
+//     },
+
+//     shippingCharge: {
+//       type: Number,
+//       default: 0,
+//       min: 0
+//     },
+
+//     // address snapshot
+//     deliveryAddress1: {
+//       type: String,
+//       required: true,
+//       trim: true
+//     },
+//     deliveryAddress2: {
+//       type: String,
+//       trim: true
+//     },
+
+//     status: {
+//       type: String,
+//       enum: [
+//         "PLACED",
+//         "CONFIRMED",
+//         "SHIPPED",
+//         "OUT_FOR_DELIVERY",
+//         "DELIVERED",
+//         "CANCELLED"
+//       ],
+//       default: "PLACED"
+//     },
+
+//     total: {
+//       type: Number,
+//       required: true,
+//       min: 0
+//     },
+
+//     deliveryPersonID: {
+//       type: Schema.Types.ObjectId,
+//       ref: "DeliveryPerson" // or DeliveryPerson if you have separate model
+//     },
+
+//     offerID: {
+//       type: Schema.Types.ObjectId,
+//       ref: "Offer"
+//     },
+
+//     orderedAt: {
+//       type: Date,
+//       default: Date.now
+//     },
+//     deliveredAt: {
+//       type: Date,
+//     }
+//   },
+//   {
+//     timestamps: true
+//   }
+// );
+
+// export const Order = mongoose.model("Order", orderSchema);
+
+
 import mongoose, { Schema } from "mongoose";
 
 const orderSchema = new Schema(
@@ -5,61 +114,76 @@ const orderSchema = new Schema(
     userID: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
     },
 
-    // snapshot of cart items at order time
+    /* 🔒 PRICE SNAPSHOT */
     products: [
       {
         productID: {
           type: Schema.Types.ObjectId,
           ref: "Product",
-          required: true
+          required: true,
         },
+
         name: {
-          type: String, // snapshot (product name at time of order)
-          required: true
+          type: String,
+          required: true,
         },
+
         quantity: {
           type: Number,
           required: true,
-          min: 1
+          min: 1,
         },
+
         price: {
-          type: Number, // snapshot price
+          type: Number, // original product price
           required: true,
-          min: 0
-        }
-      }
+          min: 0,
+        },
+
+        finalUnitPrice: {
+          type: Number, // after offer
+          required: true,
+          min: 0,
+        },
+
+        appliedOfferSnapshot: {
+          title: String,
+          discountType: String,
+          discountValue: Number,
+        },
+      },
     ],
 
-    // taxes
-    SGST: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
     CGST: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
+    },
+
+    SGST: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
 
     shippingCharge: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
-    // address snapshot
     deliveryAddress1: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
+
     deliveryAddress2: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     status: {
@@ -70,38 +194,33 @@ const orderSchema = new Schema(
         "SHIPPED",
         "OUT_FOR_DELIVERY",
         "DELIVERED",
-        "CANCELLED"
+        "CANCELLED",
       ],
-      default: "PLACED"
+      default: "PLACED",
     },
 
     total: {
       type: Number,
       required: true,
-      min: 0
+      min: 0,
     },
 
     deliveryPersonID: {
       type: Schema.Types.ObjectId,
-      ref: "DeliveryPerson" // or DeliveryPerson if you have separate model
-    },
-
-    offerID: {
-      type: Schema.Types.ObjectId,
-      ref: "Offer"
+      ref: "DeliveryPerson",
     },
 
     orderedAt: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
+
     deliveredAt: {
       type: Date,
-    }
+    },
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 );
 
 export const Order = mongoose.model("Order", orderSchema);
+

@@ -6,31 +6,42 @@ const orderDetailSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Order",
       required: true,
-      index: true
     },
 
     productID: {
       type: Schema.Types.ObjectId,
       ref: "Product",
-      required: true
+      required: true,
     },
 
     quantity: {
       type: Number,
       required: true,
-      min: 1
+      min: 1,
     },
 
     price: {
-      type: Number,
+      type: Number, // original product price
       required: true,
-      min: 0
-      // snapshot price at time of order
-    }
+      min: 0,
+    },
+
+    finalUnitPrice: {
+      type: Number, // after offer
+      required: true,
+      min: 0,
+    },
+
+    appliedOfferSnapshot: {
+      title: String,
+      discountType: String,
+      discountValue: Number,
+    },
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 );
 
-export const OrderDetail = mongoose.model("OrderDetail", orderDetailSchema);
+export const OrderDetail = mongoose.model(
+  "OrderDetail",
+  orderDetailSchema
+);

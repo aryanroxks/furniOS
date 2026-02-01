@@ -37,7 +37,11 @@ import purchaseRouter from "./routes/purchase.routes.js"
 import vendorRouter from "./routes/vendor.routes.js"
 import rawMaterialRouter from "./routes/raw_material.routes.js"
 import productionRouter from "./routes/production.routes.js"
-
+import offerRouter from "./routes/offers.routes.js"
+import wholesaleRouter from "./routes/wholesale.routes.js"
+import notificationRouter from "./routes/notifications.routes.js"
+import feedbackRouter from "./routes/feedback.routes.js"
+import inquiryRouter from "./routes/inquiry.routes.js"
 
 
 
@@ -55,6 +59,11 @@ app.use("/api/v1/purchases",purchaseRouter)
 app.use("/api/v1/vendors",vendorRouter)
 app.use("/api/v1/raw-materials",rawMaterialRouter)
 app.use("/api/v1/productions",productionRouter)
+app.use("/api/v1/offers",offerRouter)
+app.use("/api/v1/wholesale",wholesaleRouter)
+app.use("/api/v1/notifications",notificationRouter)
+app.use("/api/v1/feedbacks",feedbackRouter)
+app.use("/api/v1/inquiries",inquiryRouter)
 
 
 

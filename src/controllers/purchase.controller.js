@@ -6,6 +6,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { PurchaseDetail } from "../models/purchase_details.model.js";
+import {RawMaterial} from "../models/raw_material.model.js"
 
  const createPurchase = asyncHandler(async (req, res) => {
     const { vendorId, purchaseDate, items } = req.body;
@@ -38,7 +39,7 @@ import { PurchaseDetail } from "../models/purchase_details.model.js";
             );
         }
 
-        if (!["product", "rawMaterial"].includes(itemType)) {
+        if (!["PRODUCT", "RAWMATERIAL"].includes(itemType)) {
             throw new ApiError(
                 400,
                 `Invalid itemType at index ${index}`

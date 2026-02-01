@@ -7,6 +7,8 @@ import { Product } from "../models/products.model.js";
 import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js";
 import { SubCategory } from "../models/sub_category.model.js";
 import mongoose from "mongoose";
+import {applyBestOffer} from "../utils/applyBestOffer.js"
+import { Offer } from "../models/offers.model.js";
 
 
 
@@ -680,40 +682,62 @@ const replaceMedia = asyncHandler(async (req, res) => {
 
 
 const getProductById = asyncHandler(async (req, res) => {
-    const { productId } = req.params;
+  const { productId } = req.params;
 
-    const product = await Product.findById(productId)
-        .populate("subCategoryID", "name categoryID"); // ✅ FIX
+  const product = await Product.findById(productId)
+    .populate("subCategoryID", "name categoryID");
 
-    if (!product) {
-        throw new ApiError(404, "Product not found!");
-    }
+  if (!product) {
+    throw new ApiError(404, "Product not found!");
+  }
 
-    return res.status(200).json(
-        new ApiResponse(200, product, "Product fetched successfully!")
-    );
+  const { finalPrice, appliedOffer } = await applyBestOffer(product);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        ...product.toObject(),
+        finalPrice,
+        appliedOffer,
+      },
+      "Product fetched successfully!"
+    )
+  );
 });
+
 
 
 const getProducts = asyncHandler(async (req, res) => {
-    const { subcategory } = req.query;
+  const { subcategory } = req.query;
+  const filter = {};
 
-    const filter = {};
-
-    if (subcategory) {
-        if (!mongoose.isValidObjectId(subcategory)) {
-            throw new ApiError(400, "Invalid subcategory id");
-        }
-        filter.subCategoryID = subcategory;
+  if (subcategory) {
+    if (!mongoose.isValidObjectId(subcategory)) {
+      throw new ApiError(400, "Invalid subcategory id");
     }
+    filter.subCategoryID = subcategory;
+  }
 
-    const products = await Product.find(filter)
-        .populate("subCategoryID", "name"); // ✅ images preserved
+  const products = await Product.find(filter)
+    .populate("subCategoryID", "name");
 
-    return res.status(200).json(
-        new ApiResponse(200, products, "Products fetched successfully")
-    );
+  const productsWithOffers = await Promise.all(
+    products.map(async (product) => {
+      const { finalPrice, appliedOffer } = await applyBestOffer(product);
+      return {
+        ...product.toObject(),
+        finalPrice,
+        appliedOffer,
+      };
+    })
+  );
+
+  return res.status(200).json(
+    new ApiResponse(200, productsWithOffers, "Products fetched successfully")
+  );
 });
+
 
 
 

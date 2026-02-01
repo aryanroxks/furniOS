@@ -1,3 +1,5 @@
+import { Offer } from "../models/offers.model.js";
+
 export const applyBestOffer = async (product) => {
   const now = new Date();
 

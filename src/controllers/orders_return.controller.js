@@ -227,14 +227,13 @@ const updateReturnStatus = asyncHandler(async (req, res) => {
 
 
 const getReturnDetails = asyncHandler(async (req, res) => {
-
-  const { returnId } = req.params;
   const userId = req.user._id;
 
-  const result = await OrderReturn.aggregate([
+  const returns = await OrderReturn.aggregate([
     {
-      $match: { _id: new mongoose.Types.ObjectId(returnId) }
+      $match: { userID: new mongoose.Types.ObjectId(userId) }
     },
+
     {
       $lookup: {
         from: "orderreturndetails",
@@ -242,27 +241,49 @@ const getReturnDetails = asyncHandler(async (req, res) => {
         foreignField: "orderReturnID",
         as: "items"
       }
-    }
+    },
+
+    { $unwind: "$items" },
+
+    {
+      $lookup: {
+        from: "products",
+        localField: "items.productID",
+        foreignField: "_id",
+        as: "product"
+      }
+    },
+
+    { $unwind: "$product" },
+
+    {
+      $group: {
+        _id: "$_id",
+        orderID: { $first: "$orderID" },
+        status: { $first: "$status" },
+        refundAmount: { $first: "$refundAmount" },
+        refundMode: { $first: "$refundMode" },
+        createdAt: { $first: "$createdAt" },
+
+        items: {
+          $push: {
+            name: "$product.name",
+            price: "$items.price",
+            quantity: "$items.quantity"
+          }
+        }
+      }
+    },
+
+    { $sort: { createdAt: -1 } }
   ]);
 
-  if (!result.length) {
-    throw new ApiError(404, "Return not found");
-  }
-
-  const orderReturn = result[0];
-
-  // 🔐 user can see only own return (admin handled via middleware)
-  if (
-    orderReturn.userID.toString() !== userId.toString() &&
-    req.user.roleID.toString() !== roles.admin
-  ) {
-    throw new ApiError(403, "Unauthorized!");
-  }
-
   return res.status(200).json(
-    new ApiResponse(200, orderReturn, "Return details fetched")
+    new ApiResponse(200, returns, "My returns fetched successfully")
   );
 });
+
+
 
 
 const adminGetAllReturns = asyncHandler(async (req, res) => {
@@ -334,6 +355,4 @@ export {
     getReturnDetails,
     adminGetAllReturns,
     cancelReturnRequest
-    
-
 }
