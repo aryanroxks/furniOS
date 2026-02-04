@@ -708,15 +708,53 @@ const getProductById = asyncHandler(async (req, res) => {
 
 
 
+// const getProducts = asyncHandler(async (req, res) => {
+//   const { subcategory } = req.query;
+//   const filter = {};
+
+//   if (subcategory) {
+//     if (!mongoose.isValidObjectId(subcategory)) {
+//       throw new ApiError(400, "Invalid subcategory id");
+//     }
+//     filter.subCategoryID = subcategory;
+//   }
+
+//   const products = await Product.find(filter)
+//     .populate("subCategoryID", "name");
+
+//   const productsWithOffers = await Promise.all(
+//     products.map(async (product) => {
+//       const { finalPrice, appliedOffer } = await applyBestOffer(product);
+//       return {
+//         ...product.toObject(),
+//         finalPrice,
+//         appliedOffer,
+//       };
+//     })
+//   );
+
+//   return res.status(200).json(
+//     new ApiResponse(200, productsWithOffers, "Products fetched successfully")
+//   );
+// });
 const getProducts = asyncHandler(async (req, res) => {
-  const { subcategory } = req.query;
+  const { subcategory, search } = req.query;
   const filter = {};
 
+  /* Subcategory filter */
   if (subcategory) {
     if (!mongoose.isValidObjectId(subcategory)) {
       throw new ApiError(400, "Invalid subcategory id");
     }
     filter.subCategoryID = subcategory;
+  }
+
+  /* 🔍 Search filter */
+  if (search) {
+    filter.name = {
+      $regex: search,
+      $options: "i", // case-insensitive
+    };
   }
 
   const products = await Product.find(filter)
@@ -737,6 +775,7 @@ const getProducts = asyncHandler(async (req, res) => {
     new ApiResponse(200, productsWithOffers, "Products fetched successfully")
   );
 });
+
 
 
 

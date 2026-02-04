@@ -2,7 +2,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Feedback } from "../models/feedback.model.js";
-import { Order } from "../models/order.model.js";
+import { Order } from "../models/orders.model.js";
 import mongoose from "mongoose";
 
 export const createFeedback = asyncHandler(async (req, res) => {
@@ -160,7 +160,7 @@ export const getProductFeedbacks = asyncHandler(async (req, res) => {
 
 
 
-const getProductRatingSummary = asyncHandler(async (req, res) => {
+export const getProductRatingSummary = asyncHandler(async (req, res) => {
   const { productId } = req.params;
 
   if (!mongoose.Types.ObjectId.isValid(productId)) {

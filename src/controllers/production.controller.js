@@ -13,7 +13,6 @@ const createProduction = asyncHandler(async (req, res) => {
     productionNumber,
     productionDate,
     products,
-    productionRawMaterial,
     totalProductionCost,
   } = req.body;
 
@@ -36,14 +35,37 @@ const createProduction = asyncHandler(async (req, res) => {
     );
   }
 
+
+  const rawMaterialMap = new Map();
+
+for (const product of products) {
+  for (const mat of product.materialsUsed) {
+    const key = mat.rawMaterialID.toString();
+
+    if (!rawMaterialMap.has(key)) {
+      rawMaterialMap.set(key, {
+        rawMaterialID: mat.rawMaterialID,
+        totalQuantityUsed: 0,
+        totalCost: 0,
+      });
+    }
+
+    const entry = rawMaterialMap.get(key);
+    entry.totalQuantityUsed += mat.quantityUsed;
+    entry.totalCost += mat.totalCost;
+  }
+}
+
+const rawMaterials = Array.from(rawMaterialMap.values());
+
+
   // 3️⃣ Create production (NO STOCK CHANGE)
   const production = await Production.create({
     productionNumber,
     productionDate,
     status: "PLANNED",
-
     products,
-    productionRawMaterial: productionRawMaterial || [],
+    rawMaterials,
     totalProductionCost: totalProductionCost || 0,
 
     createdBy: req.user._id,
@@ -88,7 +110,7 @@ const completeProduction = asyncHandler(async (req, res) => {
     }
 
 
-    for (const material of production.productionRawMaterial) {
+    for (const material of production.rawMaterials) {
       const rawMaterial = await RawMaterial.findById(
         material.rawMaterialID
       ).session(session);
@@ -97,7 +119,7 @@ const completeProduction = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Raw material not found");
       }
 
-      if (rawMaterial.stock < material.totalQuantityUsed) {
+      if (rawMaterial.quantity < material.totalQuantityUsed) {
         throw new ApiError(
           400,
           `Insufficient stock for raw material: ${rawMaterial.name}`
@@ -106,10 +128,10 @@ const completeProduction = asyncHandler(async (req, res) => {
     }
 
     // 3️⃣ Deduct raw material stock
-    for (const material of production.productionRawMaterial) {
+    for (const material of production.rawMaterials) {
       await RawMaterial.findByIdAndUpdate(
         material.rawMaterialID,
-        { $inc: { stock: -material.totalQuantityUsed } },
+        { $inc: { quantity: -material.totalQuantityUsed } },
         { session }
       );
     }
@@ -290,7 +312,7 @@ const getProduction = asyncHandler(async (req, res) => {
   const production = await Production.findById(id)
     .populate("products.productID", "name")
     .populate("products.materialsUsed.rawMaterialID", "name")
-    .populate("productionRawMaterial.rawMaterialID", "name");
+    .populate("rawMaterials.rawMaterialID", "name")
 
   if (!production) {
     throw new ApiError(404, "Production not found");
@@ -335,7 +357,7 @@ const getAllProductions = asyncHandler(async (req, res) => {
 
   const productions = await Production.find(query)
     .populate("products.productID", "name")
-    .populate("productionRawMaterial.rawMaterialID", "name")
+    .populate("rawMaterials.rawMaterialID", "name")
     .sort({ productionDate: -1 })
     .skip(skip)
     .limit(pageSize);
@@ -359,6 +381,42 @@ const getAllProductions = asyncHandler(async (req, res) => {
   );
 });
 
+const deleteProduction = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const production = await Production.findById(id);
+
+  if (!production) {
+    throw new ApiError(404, "Production not found");
+  }
+
+  // ❌ Prevent deleting critical states
+  if (production.status === "IN_PROGRESS") {
+    throw new ApiError(
+      400,
+      "Production in progress cannot be deleted"
+    );
+  }
+
+  if (production.status === "COMPLETED") {
+    throw new ApiError(
+      400,
+      "Completed production cannot be deleted"
+    );
+  }
+
+  // ✅ Only PLANNED allowed
+  await Production.findByIdAndDelete(id);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      null,
+      "Production deleted successfully"
+    )
+  );
+});
+
 
 
 export {
@@ -368,7 +426,6 @@ export {
     cancelProduction,
     updateProduction,
     getProduction,
-    getAllProductions
-    
-
+    getAllProductions,
+    deleteProduction
 }

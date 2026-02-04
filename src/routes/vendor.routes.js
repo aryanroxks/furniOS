@@ -14,7 +14,7 @@ import { roles } from "../constants.js";
 const router = Router();
 
 /**
- * Base route: /api/v1/vendors
+ * Base route: /vendors
  * ADMIN ONLY
  */
 

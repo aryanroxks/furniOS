@@ -12,7 +12,7 @@ import {
 const router = Router();
 
 /**
- * Base route: /api/v1/raw-materials
+ * Base route: /raw-materials
  * ADMIN ONLY
  */
 

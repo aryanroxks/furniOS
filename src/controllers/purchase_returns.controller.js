@@ -6,107 +6,202 @@ import { Purchase } from "../models/purchase.model.js";
 import { PurchaseReturn } from "../models/purchase_returns.model.js";
 import { RawMaterial } from "../models/raw_material.model.js";
 import { Product } from "../models/products.model.js";
+import mongoose from "mongoose";
 
 
+// const createPurchaseReturn = asyncHandler(async (req, res) => {
+
+//     const { purchaseID, items, reason } = req.body;
+
+//     // 1️⃣ Basic validation
+//     if (!purchaseID || !items || !Array.isArray(items) || items.length === 0) {
+//         throw new ApiError(400, "Purchase ID and return items are required");
+//     }
+
+//     // 2️⃣ Fetch purchase
+//     const purchase = await Purchase.findById(purchaseID);
+
+//     if (!purchase) {
+//         throw new ApiError(404, "Purchase not found");
+//     }
+
+//     if (purchase.status !== "RECEIVED") {
+//         throw new ApiError(
+//             400,
+//             "Purchase return can only be created for RECEIVED purchases"
+//         );
+//     }
+
+//     // 3️⃣ Validate return items against purchase items
+//     let returnAmount = 0;
+
+//     const validatedItems = items.map((returnItem) => {
+//         const { itemType, itemID, quantity, reason } = returnItem;
+
+//         if (!itemType || !itemID || !quantity || quantity <= 0) {
+//             throw new ApiError(400, "Invalid return item data");
+//         }
+
+//         const purchaseItem = purchase.items.find(
+//             (pItem) =>
+//                 pItem.itemType === itemType &&
+//                 pItem.itemId.toString() === itemID.toString()
+//         );
+
+//         if (!purchaseItem) {
+//             throw new ApiError(
+//                 400,
+//                 "Returned item does not exist in the purchase"
+//             );
+//         }
+
+//         if (quantity > purchaseItem.quantity) {
+//             throw new ApiError(
+//                 400,
+//                 "Return quantity cannot exceed purchased quantity"
+//             );
+//         }
+
+//         const lineTotal = quantity * purchaseItem.unitPrice;
+//         returnAmount += lineTotal;
+
+//         return {
+//             itemType,
+//             itemID,
+//             quantity,
+//             unitPrice: purchaseItem.unitPrice, // snapshot
+//             lineTotal,
+//             reason,
+//         };
+//     });
+
+//     // 4️⃣ Create purchase return (final state)
+//     const purchaseReturn = await PurchaseReturn.create({
+//         purchaseID: purchase._id,
+//         vendorID: purchase.vendorId,
+//         items: validatedItems,
+//         returnAmount,
+//         reason,
+//         status: "CREATED",
+//     });
+
+
+//     return res.status(201).json(
+//         new ApiResponse(
+//             201,
+//             purchaseReturn,
+//             "Purchase return created successfully"
+//         )
+//     );
+// });
 
 const createPurchaseReturn = asyncHandler(async (req, res) => {
+  const { purchaseID, items, reason } = req.body;
 
-    const { purchaseID, items, reason } = req.body;
+  if (!purchaseID || !items || !Array.isArray(items) || items.length === 0) {
+    throw new ApiError(400, "Purchase ID and items are required");
+  }
 
-    // 1️⃣ Basic validation
-    if (!purchaseID || !items || !Array.isArray(items) || items.length === 0) {
-        throw new ApiError(400, "Purchase ID and return items are required");
+  // 1️⃣ Fetch purchase
+  const purchase = await Purchase.findById(purchaseID);
+  if (!purchase) {
+    throw new ApiError(404, "Purchase not found");
+  }
+
+  // 2️⃣ Fetch ALL existing returns for this purchase
+  // IMPORTANT: count both CREATED and COMPLETED
+  const existingReturns = await PurchaseReturn.find({
+    purchaseID,
+    status: { $ne: "CANCELLED" }, // future-proof
+  });
+
+  let returnAmount = 0;
+
+  // 3️⃣ Validate each return item
+  const validatedItems = items.map((returnItem) => {
+    const { itemType, itemID, quantity, reason } = returnItem;
+
+    if (!itemType || !itemID || !quantity || quantity <= 0) {
+      throw new ApiError(400, "Invalid return item data");
     }
 
-    // 2️⃣ Fetch purchase
-    const purchase = await Purchase.findById(purchaseID);
-
-    if (!purchase) {
-        throw new ApiError(404, "Purchase not found");
-    }
-
-    if (purchase.status !== "RECEIVED") {
-        throw new ApiError(
-            400,
-            "Purchase return can only be created for RECEIVED purchases"
-        );
-    }
-
-    // 3️⃣ Validate return items against purchase items
-    let returnAmount = 0;
-
-    const validatedItems = items.map((returnItem) => {
-        const { itemType, itemID, quantity, reason } = returnItem;
-
-        if (!itemType || !itemID || !quantity || quantity <= 0) {
-            throw new ApiError(400, "Invalid return item data");
-        }
-
-        const purchaseItem = purchase.items.find(
-            (pItem) =>
-                pItem.itemType === itemType &&
-                pItem.itemId.toString() === itemID.toString()
-        );
-
-        if (!purchaseItem) {
-            throw new ApiError(
-                400,
-                "Returned item does not exist in the purchase"
-            );
-        }
-
-        if (quantity > purchaseItem.quantity) {
-            throw new ApiError(
-                400,
-                "Return quantity cannot exceed purchased quantity"
-            );
-        }
-
-        const lineTotal = quantity * purchaseItem.unitPrice;
-        returnAmount += lineTotal;
-
-        return {
-            itemType,
-            itemID,
-            quantity,
-            unitPrice: purchaseItem.unitPrice, // snapshot
-            lineTotal,
-            reason,
-        };
-    });
-
-    // 4️⃣ Create purchase return (final state)
-    const purchaseReturn = await PurchaseReturn.create({
-        purchaseID: purchase._id,
-        vendorID: purchase.vendorId,
-        items: validatedItems,
-        returnAmount,
-        reason,
-        status: "CREATED",
-    });
-
-
-    return res.status(201).json(
-        new ApiResponse(
-            201,
-            purchaseReturn,
-            "Purchase return created successfully"
-        )
+    // 3.1 Find item in purchase
+    const purchaseItem = purchase.items.find(
+      (pItem) =>
+        pItem.itemType === itemType &&
+        pItem.itemId.toString() === itemID.toString()
     );
+
+    if (!purchaseItem) {
+      throw new ApiError(400, "Return item not found in purchase");
+    }
+
+    // 3.2 Calculate already returned quantity for this item
+    const alreadyReturnedQty = existingReturns.reduce((sum, pr) => {
+      const matchedItem = pr.items.find(
+        (i) =>
+          i.itemType === itemType &&
+          i.itemID.toString() === itemID.toString()
+      );
+      return sum + (matchedItem ? matchedItem.quantity : 0);
+    }, 0);
+
+    // 3.3 Net quantity validation
+    const maxAllowedQty =
+      purchaseItem.quantity - alreadyReturnedQty;
+
+    if (quantity > maxAllowedQty) {
+      throw new ApiError(
+        400,
+        `Max returnable quantity for this item is ${maxAllowedQty}`
+      );
+    }
+
+    // 3.4 Calculate line total
+    const lineTotal = quantity * purchaseItem.unitPrice;
+    returnAmount += lineTotal;
+
+    return {
+      itemType,
+      itemID,
+      quantity,
+      unitPrice: purchaseItem.unitPrice, // snapshot
+      lineTotal,
+      reason,
+    };
+  });
+
+  // 4️⃣ Create purchase return
+  const purchaseReturn = await PurchaseReturn.create({
+    purchaseID,
+    vendorID: purchase.vendorId,
+    items: validatedItems,
+    returnAmount,
+    reason,
+    status: "CREATED",
+  });
+
+  return res.status(201).json(
+    new ApiResponse(
+      201,
+      purchaseReturn,
+      "Purchase return created successfully"
+    )
+  );
 });
 
 
 
 
 const completePurchaseReturn = asyncHandler(async (req, res) => {
-    const { purchaseReturnId } = req.params;
+    const { returnID } = req.params;
 
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
         // 1️⃣ Fetch purchase return
-        const purchaseReturn = await PurchaseReturn.findById(purchaseReturnId).session(session);
+        const purchaseReturn = await PurchaseReturn.findById(returnID).session(session);
 
         if (!purchaseReturn) {
             throw new ApiError(404, "Purchase return not found");
@@ -189,7 +284,6 @@ const completePurchaseReturn = asyncHandler(async (req, res) => {
 const getPurchaseReturns = asyncHandler(async (req, res) => {
     const {
         status,
-        purchaseID,
         vendorID,
         fromDate,
         toDate,
@@ -201,7 +295,6 @@ const getPurchaseReturns = asyncHandler(async (req, res) => {
 
     // Filters
     if (status) query.status = status;
-    if (purchaseID) query.purchaseID = purchaseID;
     if (vendorID) query.vendorID = vendorID;
 
     if (fromDate || toDate) {
@@ -217,6 +310,7 @@ const getPurchaseReturns = asyncHandler(async (req, res) => {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(Number(limit))
+            .populate("vendorID","name")
             .populate({
                 path: "items.itemID",
                 select: "name images price", // ONLY UI fields
@@ -240,15 +334,29 @@ const getPurchaseReturns = asyncHandler(async (req, res) => {
 
 
 const getPurchaseReturnById = asyncHandler(async (req, res) => {
-    const { purchaseReturnId } = req.params;
+    const { returnID } = req.params;
 
-    const purchaseReturn = await PurchaseReturn.findById(purchaseReturnId).populate({
-        path: "items.itemID",
-        select: "name images price",
-    });
+    const purchaseReturn = await PurchaseReturn.findById(returnID)
+    .populate("vendorID","name")
+        .lean();
 
     if (!purchaseReturn) {
         throw new ApiError(404, "Purchase return not found");
+    }
+
+    // 🔥 Manual population based on itemType
+    for (const item of purchaseReturn.items) {
+        if (item.itemType === "PRODUCT") {
+            item.itemID = await Product.findById(item.itemID)
+                .select("name images price")
+                .lean();
+        }
+
+        if (item.itemType === "RAWMATERIAL") {
+            item.itemID = await RawMaterial.findById(item.itemID)
+                .select("name")
+                .lean();
+        }
     }
 
     return res.status(200).json(
@@ -261,33 +369,34 @@ const getPurchaseReturnById = asyncHandler(async (req, res) => {
 });
 
 
+
 const updatePurchaseReturn = asyncHandler(async (req, res) => {
-    const { purchaseReturnId } = req.params;
+    const { returnID } = req.params; // ✅ matches route
     const { items, reason } = req.body;
 
-    const purchaseReturn = await PurchaseReturn.findById(purchaseReturnId);
-
+    const purchaseReturn = await PurchaseReturn.findById(returnID);
     if (!purchaseReturn) {
         throw new ApiError(404, "Purchase return not found");
     }
 
     if (purchaseReturn.status !== "CREATED") {
-        throw new ApiError(
-            400,
-            "Only CREATED purchase returns can be updated"
-        );
+        throw new ApiError(400, "Only CREATED purchase returns can be updated");
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
         throw new ApiError(400, "Items are required");
     }
 
-    // Fetch purchase for validation
     const purchase = await Purchase.findById(purchaseReturn.purchaseID);
-
     if (!purchase) {
         throw new ApiError(404, "Associated purchase not found");
     }
+
+    // 🔥 fetch other returns of same purchase (excluding current)
+    const otherReturns = await PurchaseReturn.find({
+        purchaseID: purchaseReturn.purchaseID,
+        _id: { $ne: purchaseReturn._id },
+    });
 
     let returnAmount = 0;
 
@@ -304,10 +413,23 @@ const updatePurchaseReturn = asyncHandler(async (req, res) => {
             throw new ApiError(400, "Invalid return item");
         }
 
-        if (quantity > purchaseItem.quantity) {
+        // 🔥 calculate already returned qty (excluding current return)
+        const alreadyReturnedQty = otherReturns.reduce((sum, pr) => {
+            const item = pr.items.find(
+                (i) =>
+                    i.itemType === itemType &&
+                    i.itemID.toString() === itemID.toString()
+            );
+            return sum + (item ? item.quantity : 0);
+        }, 0);
+
+        const maxAllowedQty =
+            purchaseItem.quantity - alreadyReturnedQty;
+
+        if (quantity > maxAllowedQty) {
             throw new ApiError(
                 400,
-                "Return quantity exceeds purchased quantity"
+                `Max returnable quantity is ${maxAllowedQty}`
             );
         }
 
@@ -340,10 +462,12 @@ const updatePurchaseReturn = asyncHandler(async (req, res) => {
 });
 
 
-const deletePurchaseReturn = asyncHandler(async (req, res) => {
-    const { purchaseReturnId } = req.params;
 
-    const purchaseReturn = await PurchaseReturn.findById(purchaseReturnId);
+
+const deletePurchaseReturn = asyncHandler(async (req, res) => {
+    const { returnID } = req.params;
+
+    const purchaseReturn = await PurchaseReturn.findById(returnID);
 
     if (!purchaseReturn) {
         throw new ApiError(404, "Purchase return not found");
@@ -356,8 +480,7 @@ const deletePurchaseReturn = asyncHandler(async (req, res) => {
         );
     }
 
-    purchaseReturn.isDeleted = true;
-    await purchaseReturn.save();
+    await PurchaseReturn.findByIdAndDelete(returnID);
 
     return res.status(200).json(
         new ApiResponse(
@@ -367,6 +490,7 @@ const deletePurchaseReturn = asyncHandler(async (req, res) => {
         )
     );
 });
+
 
 
 

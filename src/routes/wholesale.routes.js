@@ -8,7 +8,8 @@ import {
   getMyWholesaleQuotations,
   getAllWholesaleQuotations,
   rejectWholesaleQuotation,
-  rejectWholesaleQuotationByAdmin
+  rejectWholesaleQuotationByAdmin,
+  updateWholesaleQuotation
 } from "../controllers/wholesale.controller.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -24,7 +25,7 @@ const router = Router();
 
 /**
  * Create wholesale quotation
- * POST /api/wholesale/quotations
+ * Base url /wholesale
  */
 router.route("/quotations").post(
   verifyJWT,
@@ -32,30 +33,21 @@ router.route("/quotations").post(
   createWholesaleQuotation
 );
 
-/**
- * Get my wholesale quotations (LIST)
- * GET /api/wholesale/quotations/my
- */
+
 router.route("/quotations/my").get(
   verifyJWT,
   authorizeRoles(roles.wholesale_customer),
   getMyWholesaleQuotations
 );
 
-/**
- * Get wholesale quotation details (OWNED)
- * GET /api/wholesale/quotations/:quotationID
- */
+
 router.route("/quotations/:quotationID").get(
   verifyJWT,
   authorizeRoles(roles.wholesale_customer),
   getWholesaleQuotationDetails
 );
 
-/**
- * Approve wholesale quotation
- * POST /api/wholesale/quotations/:quotationID/approve
- */
+
 router.route("/quotations/:quotationID/approve").post(
   verifyJWT,
   authorizeRoles(roles.wholesale_customer),
@@ -68,27 +60,25 @@ router.route("/quotations/:quotationID/reject").post(
   rejectWholesaleQuotation
 );
 
-
+router.put(
+  "/quotations/:quotationID/modify",
+  verifyJWT,
+  authorizeRoles(roles.wholesale_customer),
+  updateWholesaleQuotation
+);
 
 /* ======================================================
    ADMIN ROUTES
    (role: admin)
 ====================================================== */
 
-/**
- * Revert quotation (ADMIN updates prices)
- * PUT /api/wholesale/admin/quotations/:quotationID/revert
- */
+
 router.route("/admin/quotations/:quotationID/revert").put(
   verifyJWT,
   authorizeRoles(roles.admin),
   revertWholesaleQuotation
 );
 
-/**
- * Get quotation details (ADMIN view)
- * GET /api/wholesale/admin/quotations/:quotationID
- */
 router.route("/admin/quotations/:quotationID").get(
   verifyJWT,
   authorizeRoles(roles.admin),
@@ -107,6 +97,8 @@ router.route("/admin/quotations/:quotationID/reject").post(
   authorizeRoles(roles.admin),
   rejectWholesaleQuotationByAdmin
 );
+
+
 
 
 export default router;

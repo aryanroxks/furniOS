@@ -370,6 +370,21 @@ const getAllOffers = asyncHandler(async (req, res) => {
   );
 });
 
+const deleteOffer  = asyncHandler(async(req,res) => {
+
+  const {offerId} = req.params;
+
+  const offer = Offer.findByIdAndDelete(offerId)
+
+  if(!offer){
+    throw new ApiError(404,"Offer not found!")
+  }
+
+  return res
+  .status(200)
+  .json(new ApiResponse(200,{},"Offer deleted successfully!"))
+
+})
 
 
 
@@ -378,6 +393,6 @@ export {
     updateOffer,
     toggleOfferStatus,
     getAllOffers,
-    getOfferById
-    
+    getOfferById,
+    deleteOffer
 }

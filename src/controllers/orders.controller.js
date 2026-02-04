@@ -4,12 +4,13 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { Product } from "../models/products.model.js";
 import { DeliveryPerson } from "../models/delivery_person.model.js";
 import { Order } from "../models/orders.model.js";
-import mongoose from "mongoose";
+import mongoose, { now } from "mongoose";
 import { isValidObjectId } from "mongoose";
 import { roles } from "../constants.js";
 import { OrderDetail } from "../models/orders_details.model.js";
-
-
+import PDFDocument from "pdfkit";
+import { WholesaleQuotation } from "../models/quotation_master.model.js";
+import { WholesaleQuotationItem } from "../models/quotation_items.model.js";
 
 // const createOrder = asyncHandler(async (req, res) => {
 
@@ -96,6 +97,7 @@ import { OrderDetail } from "../models/orders_details.model.js";
 
 
 import { applyBestOffer } from "../utils/applyBestOffer.js";
+import { Payment } from "../models/payments.model.js";
 
 const createOrder = asyncHandler(async (req, res) => {
     const { items, deliveryAddress1, deliveryAddress2 } = req.body;
@@ -167,8 +169,8 @@ const createOrder = asyncHandler(async (req, res) => {
             productID: item.productID,
             quantity: item.quantity,
             price: item.price,
-            finalUnitPrice:item.finalUnitPrice,
-            appliedOfferSnapshot:item.appliedOfferSnapshot  
+            finalUnitPrice: item.finalUnitPrice,
+            appliedOfferSnapshot: item.appliedOfferSnapshot
         });
     }
 
@@ -177,6 +179,115 @@ const createOrder = asyncHandler(async (req, res) => {
         .json(new ApiResponse(201, order, "Order placed successfully!"));
 });
 
+
+export const createWholesaleOrder = asyncHandler(async (req, res) => {
+    const { quotationID, deliveryAddress1, deliveryAddress2 } = req.body;
+    const userID = req.user._id;
+    console.log("HIT")
+
+    if (!mongoose.Types.ObjectId.isValid(quotationID)) {
+        throw new ApiError(400, "Invalid quotation ID");
+    }
+
+    const quotation = await WholesaleQuotation.findById(quotationID);
+    if (!quotation) {
+        throw new ApiError(404, "Quotation not found");
+    }
+
+    if (quotation.userID.toString() !== userID.toString()) {
+        throw new ApiError(403, "Not allowed");
+    }
+
+    /* ✅ FIXED STATUS CHECK */
+    if (quotation.status !== "APPROVED") {
+        throw new ApiError(
+            400,
+            "Quotation must be approved before checkout"
+        );
+    }
+
+    const items = await WholesaleQuotationItem
+        .find({ quotationID })
+        .populate("productID", "name price stock");
+
+    let subTotal = 0;
+    const orderProducts = [];
+
+    for (const item of items) {
+        if (!item.finalPrice || item.finalPrice <= 0) {
+            throw new ApiError(
+                400,
+                "Final price not frozen for one or more items"
+            );
+        }
+
+        if (item.quantity > item.productID.stock) {
+            throw new ApiError(
+                400,
+                `${item.productID.name} out of stock`
+            );
+        }
+
+        const lineTotal = item.finalPrice * item.quantity;
+        subTotal += lineTotal;
+
+        orderProducts.push({
+            productID: item.productID._id,
+            name: item.productID.name,
+            quantity: item.quantity,
+            price: item.productID.price,
+            finalUnitPrice: item.finalPrice,
+            appliedOfferSnapshot: {
+                title: "Wholesale Quotation",
+                discountType: "NEGOTIATED",
+                discountValue:
+                    item.productID.price - item.finalPrice,
+            },
+        });
+    }
+
+    const CGST = subTotal * 0.09;
+    const SGST = subTotal * 0.09;
+    const shippingCharge = 0;
+    const total = subTotal + CGST + SGST;
+
+    const order = await Order.create({
+        userID,
+        products: orderProducts,
+        CGST,
+        SGST,
+        shippingCharge,
+        deliveryAddress1,
+        deliveryAddress2,
+        total,
+        orderType: "WHOLESALE",
+        quotationID,
+        status: "PLACED",
+    });
+
+    quotation.status = "ORDER_CREATED";
+    await quotation.save();
+
+    /* ================= CREATE ORDER DETAILS ================= */
+    for (const item of orderProducts) {
+        await OrderDetail.create({
+            orderID: order._id,
+            productID: item.productID,
+            quantity: item.quantity,
+            price: item.price,
+            finalUnitPrice: item.finalUnitPrice,
+            appliedOfferSnapshot: item.appliedOfferSnapshot,
+        });
+    }
+
+    return res.status(201).json(
+        new ApiResponse(
+            201,
+            order,
+            "Wholesale order placed successfully"
+        )
+    );
+});
 
 
 
@@ -357,7 +468,8 @@ const getOrder = asyncHandler(async (req, res) => {
 
 const getAllOrders = asyncHandler(async (req, res) => {
 
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const orders = await Order.find().sort({ createdAt: -1 })
+        .populate("userID", "username");
 
     if (orders.length === 0) {
         throw new ApiError(404, "No orders found!");
@@ -505,7 +617,15 @@ const markOrderDelivered = asyncHandler(async (req, res) => {
     }
 
     order.status = "DELIVERED";
+    order.deliveredAt = new Date()
     deliveryPerson.status = "AVAILABLE";
+
+    const payment = await Payment.findOne({ orderID: order._id })
+    if (payment.method === "COD") {
+        payment.status = "SUCCESS"
+    }
+    await payment.save();
+
 
     await order.save();
     await deliveryPerson.save();
@@ -553,7 +673,7 @@ const getFilteredOrders = asyncHandler(async (req, res) => {
     const orders = await Order.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(Number(limit));
+        .limit(Number(limit)).populate("userID", "fullname");
 
     const totalOrders = await Order.countDocuments(filter);
 
@@ -644,57 +764,236 @@ const reassignOrder = asyncHandler(async (req, res) => {
 
 
 
-    const cancelOrder = asyncHandler(async (req, res) => {
-        const { orderId } = req.params;
+const cancelOrder = asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
 
-        if (!mongoose.Types.ObjectId.isValid(orderId)) {
-            throw new ApiError(400, "Invalid order ID");
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+        throw new ApiError(400, "Invalid order ID");
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+        throw new ApiError(404, "Order not found");
+    }
+
+    // 🔐 Authorization check (user can cancel only own order)
+    if (req.user?.roleID.toString() !== roles.admin) {
+        if (order.userID.toString() !== req.user._id.toString()) {
+            throw new ApiError(403, "You are not allowed to cancel this order");
         }
+    }
 
-        const order = await Order.findById(orderId);
-        if (!order) {
-            throw new ApiError(404, "Order not found");
+    // ❌ Invalid cancellation states
+    if (["SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status)) {
+        throw new ApiError(400, "Order cannot be cancelled at this stage");
+    }
+
+    // 🔄 Restore stock ONLY if already deducted
+    if (order.status === "CONFIRMED") {
+        for (const item of order.products) {
+            await Product.findByIdAndUpdate(
+                item.productID,
+                { $inc: { stock: item.quantity } }
+            );
         }
+    }
 
-        // 🔐 Authorization check (user can cancel only own order)
-        if (req.user?.roleID.toString() !== roles.admin) {
-            if (order.userID.toString() !== req.user._id.toString()) {
-                throw new ApiError(403, "You are not allowed to cancel this order");
-            }
-        }
+    // ✅ Cancel order
+    order.status = "CANCELLED";
+    await order.save();
 
-        // ❌ Invalid cancellation states
-        if (["SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status)) {
-            throw new ApiError(400, "Order cannot be cancelled at this stage");
-        }
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                orderId: order._id,
+                status: order.status
+            },
+            "Order cancelled successfully"
+        )
+    );
+});
 
-        // 🔄 Restore stock ONLY if already deducted
-        if (order.status === "CONFIRMED") {
-            for (const item of order.products) {
-                await Product.findByIdAndUpdate(
-                    item.productID,
-                    { $inc: { stock: item.quantity } }
-                );
-            }
-        }
 
-        // ✅ Cancel order
-        order.status = "CANCELLED";
-        await order.save();
+const formatINR = (amount) => `₹ ${amount.toLocaleString("en-IN")}`;
 
-        return res.status(200).json(
-            new ApiResponse(
-                200,
-                {
-                    orderId: order._id,
-                    status: order.status
-                },
-                "Order cancelled successfully"
-            )
-        );
+const drawLine = (doc) => {
+    doc
+        .strokeColor("#cccccc")
+        .lineWidth(1)
+        .moveTo(50, doc.y)
+        .lineTo(550, doc.y)
+        .stroke()
+        .moveDown();
+};
+
+/* =======================
+   CONTROLLER
+======================= */
+const generateOrderInvoice = asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+
+    if (!isValidObjectId(orderId)) {
+        throw new ApiError(400, "Invalid order ID");
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+        throw new ApiError(404, "Order not found");
+    }
+
+    /* =======================
+       DERIVED VALUES
+    ======================= */
+    const subtotal = order.products.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+    );
+
+    const invoiceNo = `INV-${new Date(order.orderedAt).getFullYear()}-${order._id
+        .toString()
+        .slice(-6)}`;
+
+    /* =======================
+       PDF SETUP
+    ======================= */
+    const doc = new PDFDocument({ margin: 50 });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=${invoiceNo}.pdf`
+    );
+
+    doc.pipe(res);
+
+    /* =======================
+       COMPANY HEADER
+    ======================= */
+    doc
+        .fontSize(22)
+        .text("FurniOS Pvt. Ltd.", { align: "center" });
+
+    doc
+        .fontSize(10)
+        .text("GSTIN: 24ABCDE1234F1Z5", { align: "center" });
+
+    doc.moveDown();
+    drawLine(doc);
+
+    /* =======================
+       INVOICE META
+    ======================= */
+    doc.fontSize(11);
+
+    doc.text(`Invoice No: ${invoiceNo}`, 50);
+    doc.text(`Invoice Date: ${new Date().toLocaleDateString("en-IN")}`, 350);
+
+    doc.text(`Order ID: ${order._id}`, 50);
+    doc.text(
+        `Order Date: ${new Date(order.orderedAt).toLocaleDateString("en-IN")}`,
+        350
+    );
+
+    doc.text(`Order Status: ${order.status}`, 50);
+
+    doc.moveDown();
+    drawLine(doc);
+
+    /* =======================
+       ADDRESS
+    ======================= */
+    doc
+        .fontSize(12)
+        .text("Billing / Shipping Address", { underline: true })
+        .moveDown(0.5);
+
+    doc.fontSize(11).text(order.deliveryAddress1);
+
+    if (order.deliveryAddress2) {
+        doc.text(order.deliveryAddress2);
+    }
+
+    doc.moveDown();
+    drawLine(doc);
+
+    /* =======================
+       ITEMS TABLE
+    ======================= */
+    doc.fontSize(12).text("Invoice Items");
+    doc.moveDown(0.5);
+
+    doc.fontSize(10);
+    drawLine(doc);
+
+    doc.text("Item", 50);
+    doc.text("Qty", 300);
+    doc.text("Unit Price", 360);
+    doc.text("Total", 460);
+
+    doc.moveDown();
+    drawLine(doc);
+
+    order.products.forEach((item) => {
+        const lineTotal = item.price * item.quantity;
+
+        doc.text(item.name, 50, doc.y, { width: 220 });
+        doc.text(item.quantity.toString(), 300);
+        doc.text(formatINR(item.price), 360);
+        doc.text(formatINR(lineTotal), 460);
+
+        doc.moveDown();
     });
 
+    drawLine(doc);
 
+    /* =======================
+       SUMMARY
+    ======================= */
+    doc.moveDown();
+    doc.fontSize(11);
+
+    doc.text(`Subtotal: ${formatINR(subtotal)}`, { align: "right" });
+    doc.text(`CGST (9%): ${formatINR(order.CGST)}`, { align: "right" });
+    doc.text(`SGST (9%): ${formatINR(order.SGST)}`, { align: "right" });
+    doc.text(
+        `Shipping: ${formatINR(order.shippingCharge)}`,
+        { align: "right" }
+    );
+
+    drawLine(doc);
+
+    doc
+        .fontSize(13)
+        .text(`GRAND TOTAL: ${formatINR(order.total)}`, {
+            align: "right",
+        });
+
+    /* =======================
+       FOOTER
+    ======================= */
+    doc.moveDown(2);
+
+    doc
+        .fontSize(9)
+        .fillColor("gray")
+        .text(
+            "This is a system-generated invoice and does not require a signature.",
+            { align: "center" }
+        )
+        .fillColor("black");
+
+    if (order.status === "CANCELLED") {
+        doc
+            .moveDown()
+            .fontSize(10)
+            .fillColor("red")
+            .text("⚠ This order has been cancelled.", { align: "center" })
+            .fillColor("black");
+    }
+
+    doc.end();
+});
 
 export {
     createOrder,
@@ -708,5 +1007,6 @@ export {
     getFilteredOrders,
     reassignOrder,
     cancelOrder,
+    generateOrderInvoice
     // returnOrder
 }

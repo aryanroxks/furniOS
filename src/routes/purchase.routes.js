@@ -6,6 +6,7 @@ import {
     updatePurchase,
     receivePurchase,
     cancelPurchase,
+    deletePurchase
 } from "../controllers/purchase.controller.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -16,7 +17,7 @@ const router = Router();
 
 /**
  * ADMIN ONLY
- * Base route: /api/v1/purchases
+ * Base route: /purchases
  */
 
 // Create purchase
@@ -60,5 +61,15 @@ router.route("/:id/cancel")
         authorizeRoles(roles.admin),
         cancelPurchase
     );
+
+
+// Delete purchase (ONLY PENDING)
+router.route("/:id")
+  .delete(
+    verifyJWT,
+    authorizeRoles(roles.admin),
+    deletePurchase
+  );
+
 
 export default router;

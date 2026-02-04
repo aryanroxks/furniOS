@@ -126,6 +126,4 @@ export {
     getVendorById,
     updateVendor,
     toggleVendorStatus
-
-
 }

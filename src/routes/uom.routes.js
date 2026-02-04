@@ -13,7 +13,7 @@ import { roles } from "../constants.js";
 const router = Router();
 
 /**
- * Base route: /api/v1/uoms
+ * Base route: /uoms
  * ADMIN ONLY
  */
 

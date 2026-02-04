@@ -12,8 +12,14 @@ import { applyBestOffer } from "../utils/applyBestOffer.js";
 const addProductToCart = asyncHandler(async (req, res) => {
     const { productId, qty = 1 } = req.body;
 
-    if (qty < 1) {
-        throw new ApiError(400, "Quantity must be at least 1");
+    const quantityToAdd = Number(qty);
+
+    if (!Number.isInteger(quantityToAdd) || quantityToAdd < 1) {
+        throw new ApiError(400, "Quantity must be a valid number greater than 0");
+    }
+
+    if (quantityToAdd > 5) {
+        throw new ApiError(400, "Maximum 5 quantities allowed per product");
     }
 
     const product = await Product.findById(productId);
@@ -31,13 +37,30 @@ const addProductToCart = asyncHandler(async (req, res) => {
         );
 
         if (existingProduct) {
-            existingProduct.quantity += qty;
+            const newQty = existingProduct.quantity + quantityToAdd;
+
+            if (newQty > 5) {
+                throw new ApiError(
+                    400,
+                    "You can add a maximum of 5 quantities of this product"
+                );
+            }
+
+            existingProduct.quantity = newQty;
             existingProduct.price = product.price;
             existingProduct.finalUnitPrice = finalPrice;
         } else {
+            // ✅ VALIDATE HERE ALSO
+            if (quantityToAdd > 5) {
+                throw new ApiError(
+                    400,
+                    "You can add a maximum of 5 quantities of this product"
+                );
+            }
+
             cart.products.push({
                 productID: product._id,
-                quantity: qty,
+                quantity: quantityToAdd,
                 price: product.price,
                 finalUnitPrice: finalPrice,
             });
@@ -50,7 +73,7 @@ const addProductToCart = asyncHandler(async (req, res) => {
             products: [
                 {
                     productID: product._id,
-                    quantity: qty,
+                    quantity: quantityToAdd,
                     price: product.price,
                     finalUnitPrice: finalPrice,
                 },
@@ -62,6 +85,7 @@ const addProductToCart = asyncHandler(async (req, res) => {
         .status(200)
         .json(new ApiResponse(200, cart, "Product added to cart successfully!"));
 });
+
 
 
 

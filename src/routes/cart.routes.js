@@ -6,10 +6,10 @@ import { addProductToCart, decreaseQuantity, getCart, removeProductFromCart } fr
 
 const router=Router();
 
-router.route("/add").post(verifyJWT,authorizeRoles(roles.retail_customer),addProductToCart)
-router.route("/remove").delete(verifyJWT,authorizeRoles(roles.retail_customer),removeProductFromCart)
-router.route("/decrease").patch(verifyJWT,authorizeRoles(roles.retail_customer),decreaseQuantity)
-router.route("/").get(verifyJWT,authorizeRoles(roles.retail_customer),getCart)
+router.route("/add").post(verifyJWT,authorizeRoles(roles.retail_customer,roles.admin,roles.wholesale_customer),addProductToCart)
+router.route("/remove").delete(verifyJWT,authorizeRoles(roles.retail_customer,roles.admin,roles.wholesale_customer),removeProductFromCart)
+router.route("/decrease").patch(verifyJWT,authorizeRoles(roles.retail_customer,roles.admin,roles.wholesale_customer),decreaseQuantity)
+router.route("/").get(verifyJWT,authorizeRoles(roles.retail_customer,roles.admin,roles.wholesale_customer),getCart)
 
 
 export default router

@@ -16,6 +16,8 @@ const router = Router();
 
 /* -------------------- COLLECTION ROUTES -------------------- */
 
+//BASE URL /purchase-returns
+
 router
   .route("/")
   .get(

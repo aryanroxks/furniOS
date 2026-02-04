@@ -5,6 +5,7 @@ import {
   toggleOfferStatus,
   getAllOffers,
   getOfferById,
+  deleteOffer,
 } from "../controllers/offers.controller.js";
 
 import {verifyJWT} from "../middlewares/auth.middleware.js";
@@ -16,7 +17,7 @@ const router = express.Router();
 /* =======================
    ADMIN – OFFER MANAGEMENT
    ======================= */
-
+//base url /offers
 // Create offer
 router.post(
   "/",
@@ -57,6 +58,7 @@ router.patch(
   toggleOfferStatus
 );
 
+router.route("/:offerId/delete").delete(verifyJWT,authorizeRoles(roles.admin),deleteOffer)
 
 
 export default router;

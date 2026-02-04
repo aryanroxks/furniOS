@@ -8,6 +8,7 @@ import {
   startProduction,
   completeProduction,
   cancelProduction,
+  deleteProduction
 } from "../controllers/production.controller.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -21,21 +22,29 @@ const router = Router();
    =============================== */
 
 // Create production
-
+//BASE URL /productions
 
 router.route("/create").post(verifyJWT,authorizeRoles(roles.admin),createProduction)
 
 router.route("/all").get(verifyJWT,authorizeRoles(roles.admin),getAllProductions)
 
-router.route("/:productionId").get(verifyJWT,authorizeRoles(roles.admin),getProduction)
+router.route("/:id").get(verifyJWT,authorizeRoles(roles.admin),getProduction)
 
-router.route("/:productionId").patch(verifyJWT,authorizeRoles(roles.admin),updateProduction)
+router.route("/:id").patch(verifyJWT,authorizeRoles(roles.admin),updateProduction)
 
-router.route("/:productionId/start").post(verifyJWT,authorizeRoles(roles.admin),startProduction)
+router.route("/:id/start").post(verifyJWT,authorizeRoles(roles.admin),startProduction)
 
-router.route("/:productionId/complete").post(verifyJWT,authorizeRoles(roles.admin),completeProduction)
+router.route("/:id/complete").post(verifyJWT,authorizeRoles(roles.admin),completeProduction)
 
-router.route("/:productionId/cancel").post(verifyJWT,authorizeRoles(roles.admin),cancelProduction)
+router.route("/:id/cancel").post(verifyJWT,authorizeRoles(roles.admin),cancelProduction)
+
+router
+  .route("/:id")
+  .delete(
+    verifyJWT,
+    authorizeRoles(roles.admin),
+    deleteProduction
+  );
 
 
 export default router;

@@ -5,7 +5,7 @@ import { verifyJWT } from "../middlewares/auth.middleware.js"
 import { changeCurrentPassword, adminUpdateUser,getCurrentUser, logInUser, logOutUser, updateProfileRequest, deleteUser, verifyEmailOTP, refreshAccessToken, registerRetailUser, registerWholesaleUser, registerDeliveryPerson, forgotPasswordRequest, verifyForgotPasswordOTP, getAllUsers, getUserById } from "../controllers/user.controller.js"
 import { authorizeRoles } from "../middlewares/authorizeRoles.middleware.js";
 import { roles } from "../constants.js"
-
+import { getNotActivatedDeliveryUsers } from "../controllers/delivery_person.controller.js";
 const router = Router();
 
 router.route("/register/retail-customer").post(registerRetailUser)
@@ -51,18 +51,35 @@ router.post(
 
 
 
-router.route("/:id").get(
+// router.route("/:id").get(
+//   verifyJWT,
+//   authorizeRoles(roles.admin),
+//   getUserById
+// );
+
+router.get(
+  "/delivery-persons/not-activated",
   verifyJWT,
   authorizeRoles(roles.admin),
-  getUserById
+  getNotActivatedDeliveryUsers
 );
 
+
+
+//base url /users
 router.patch(
   "/admin/:id",
   verifyJWT,
   authorizeRoles(roles.admin),
   adminUpdateUser
 );
+
+router.route("/:id").get(
+  verifyJWT,
+  authorizeRoles(roles.admin),
+  getUserById
+);
+
 
 
 

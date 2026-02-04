@@ -7,6 +7,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { PurchaseDetail } from "../models/purchase_details.model.js";
 import {RawMaterial} from "../models/raw_material.model.js"
+import mongoose from "mongoose";
 
  const createPurchase = asyncHandler(async (req, res) => {
     const { vendorId, purchaseDate, items } = req.body;
@@ -128,13 +129,13 @@ const getAllPurchases = asyncHandler(async (req, res) => {
 
 
 const getPurchaseById = asyncHandler(async (req, res) => {
-    const { purchaseId } = req.params;
+    const { id } = req.params;
 
-    if (!purchaseId) {
+    if (!id) {
         throw new ApiError(400, "Purchase ID is required");
     }
 
-    const purchase = await Purchase.findById(purchaseId)
+    const purchase = await Purchase.findById(id)
         .populate("vendorId", "name email");
 
     if (!purchase) {
@@ -156,14 +157,14 @@ const getPurchaseById = asyncHandler(async (req, res) => {
 
 
 const receivePurchase = asyncHandler(async (req, res) => {
-    const { purchaseId } = req.params;
+    const { id } = req.params;
 
-    if (!purchaseId) {
+    if (!id) {
         throw new ApiError(400, "Purchase ID is required");
     }
 
     // 1️⃣ Fetch purchase
-    const purchase = await Purchase.findById(purchaseId);
+    const purchase = await Purchase.findById(id);
 
     if (!purchase) {
         throw new ApiError(404, "Purchase not found");
@@ -256,15 +257,15 @@ const receivePurchase = asyncHandler(async (req, res) => {
 
 const updatePurchase = asyncHandler(async (req, res) => {
 
-  const { purchaseId } = req.params;
+  const { id } = req.params;
   const { purchaseDate, items } = req.body;
 
-  if (!purchaseId) {
+  if (!id) {
     throw new ApiError(400, "Purchase ID is required");
   }
 
   // 1️⃣ Fetch purchase
-  const purchase = await Purchase.findById(purchaseId);
+  const purchase = await Purchase.findById(id);
 
   if (!purchase) {
     throw new ApiError(404, "Purchase not found");
@@ -347,14 +348,15 @@ const updatePurchase = asyncHandler(async (req, res) => {
 
 
 const cancelPurchase = asyncHandler(async (req, res) => {
-  const { purchaseId } = req.params;
 
-  if (!purchaseId) {
+  const { id } = req.params;
+
+  if (!id) {
     throw new ApiError(400, "Purchase ID is required");
   }
 
   // 1️⃣ Fetch purchase
-  const purchase = await Purchase.findById(purchaseId);
+  const purchase = await Purchase.findById(id);
 
   if (!purchase) {
     throw new ApiError(404, "Purchase not found");
@@ -391,11 +393,55 @@ const cancelPurchase = asyncHandler(async (req, res) => {
 });
 
 
+const deletePurchase = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    throw new ApiError(400, "Purchase ID is required");
+  }
+
+  // 1️⃣ Fetch purchase
+  const purchase = await Purchase.findById(id);
+
+  if (!purchase) {
+    throw new ApiError(404, "Purchase not found");
+  }
+
+  // 2️⃣ Business rules
+  if (purchase.status === "RECEIVED") {
+    throw new ApiError(
+      400,
+      "Received purchase cannot be deleted"
+    );
+  }
+
+  // (Optional but recommended)
+  // Prevent deleting cancelled purchase
+  // if (purchase.status === "CANCELLED") {
+  //   throw new ApiError(400, "Cancelled purchase cannot be deleted");
+  // }
+
+  // 3️⃣ Delete purchase
+  await Purchase.findByIdAndDelete(id);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {},
+      "Purchase deleted successfully"
+    )
+  );
+});
+
+
+
+
 export {
     createPurchase,
     getAllPurchases,
     getPurchaseById,
     receivePurchase,
     updatePurchase,
-    cancelPurchase
+    cancelPurchase,
+    deletePurchase
 }

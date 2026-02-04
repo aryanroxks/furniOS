@@ -133,7 +133,7 @@ const updateRawMaterial = asyncHandler(async (req, res) => {
 
 const deleteRawMaterial = asyncHandler(async(req,res) => {
 
-    const {id} = req.body
+    const {id} = req.params
 
     const rawMaterial = await RawMaterial.findById(id)
 
@@ -157,6 +157,4 @@ export {
     getRawMaterialById,
     updateRawMaterial,
     deleteRawMaterial
-
-
 }

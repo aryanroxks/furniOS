@@ -31,6 +31,15 @@ const createWholesaleQuotation = asyncHandler(async (req, res) => {
         "Each product must have productID, quantity and requestedPrice"
       );
     }
+
+    if (item.quantity < 50) {
+      throw new ApiError(
+        400,
+        "Minimum 50 quantity required per product for wholesale quotation"
+      );
+    }
+
+
   }
 
 
@@ -175,6 +184,128 @@ const revertWholesaleQuotation = asyncHandler(async (req, res) => {
 });
 
 
+// const approveWholesaleQuotation = asyncHandler(async (req, res) => {
+//   const { quotationID } = req.params;
+//   const userID = req.user._id;
+
+//   /* -------------------- 1. Validate quotation ID -------------------- */
+//   if (!mongoose.Types.ObjectId.isValid(quotationID)) {
+//     throw new ApiError(400, "Invalid quotation ID");
+//   }
+
+//   /* -------------------- 2. Fetch quotation -------------------- */
+//   const quotation = await WholesaleQuotation.findById(quotationID);
+//   if (!quotation) {
+//     throw new ApiError(404, "Wholesale quotation not found");
+//   }
+
+//   /* -------------------- 3. Ownership check -------------------- */
+//   if (quotation.userID.toString() !== userID.toString()) {
+//     throw new ApiError(403, "You are not allowed to approve this quotation");
+//   }
+
+//   /* -------------------- 4. Status guard -------------------- */
+//   if (quotation.status !== "REVERTED") {
+//     throw new ApiError(
+//       400,
+//       "Only REVERTED quotations can be approved"
+//     );
+//   }
+
+//   /* -------------------- 5. Fetch quotation items -------------------- */
+//   const quotationItems = await WholesaleQuotationItem
+//     .find({ quotationID: quotation._id })
+//     .populate("productID", "name price");
+
+//   if (!quotationItems.length) {
+//     throw new ApiError(400, "Quotation has no items");
+//   }
+
+//   /* -------------------- 6. Build order products & freeze prices -------------------- */
+//   let subTotal = 0;
+//   const orderProducts = [];
+
+//   for (const item of quotationItems) {
+//     if (!item.approvedPrice || item.approvedPrice <= 0) {
+//       throw new ApiError(
+//         400,
+//         "Approved price missing for one or more quotation items"
+//       );
+//     }
+
+//     // Freeze negotiated price
+//     item.finalPrice = item.approvedPrice;
+//     await item.save();
+
+//     const lineTotal = item.finalPrice * item.quantity;
+//     subTotal += lineTotal;
+
+//     orderProducts.push({
+//       productID: item.productID._id,
+//       name: item.productID.name,
+//       quantity: item.quantity,
+//       price: item.productID.price,          // original price snapshot
+//       finalUnitPrice: item.finalPrice,       // negotiated price
+//       appliedOfferSnapshot: {
+//         title: "Wholesale Quotation",
+//         discountType: "NEGOTIATED",
+//         discountValue: item.productID.price - item.finalPrice
+//       }
+//     });
+//   }
+
+//   /* -------------------- 7. Fetch user address -------------------- */
+//   const user = await User.findById(userID).select(
+//     "address street city state pincode"
+//   );
+
+//   if (!user) {
+//     throw new ApiError(404, "User not found");
+//   }
+
+//   const deliveryAddress1 = `${user.address}, ${user.city}, ${user.state} - ${user.pincode}`;
+
+//   /* -------------------- 8. Tax & total calculation -------------------- */
+//   const CGST = subTotal * 0.09;
+//   const SGST = subTotal * 0.09;
+//   const shippingCharge = 0; // usually included / negotiated in wholesale
+//   const total = subTotal + CGST + SGST + shippingCharge;
+
+//   /* -------------------- 9. Create order -------------------- */
+//   const orderPayload = {
+//     userID,
+//     products: orderProducts,
+//     CGST,
+//     SGST,
+//     shippingCharge,
+//     deliveryAddress1,
+//     total,
+//     status: "PLACED"
+//   };
+
+//   // Optional fields (safe even if schema doesn't have them)
+//   orderPayload.quotationID = quotation._id;
+//   orderPayload.orderType = "WHOLESALE";
+
+//   const order = await Order.create(orderPayload);
+
+//   /* -------------------- 10. Update quotation status -------------------- */
+//   quotation.status = "ORDER_CREATED";
+//   await quotation.save();
+
+//   /* -------------------- 11. Response -------------------- */
+//   return res.status(201).json(
+//     new ApiResponse(
+//       201,
+//       {
+//         orderID: order._id,
+//         quotationID: quotation._id
+//       },
+//       "Wholesale quotation approved and order placed successfully"
+//     )
+//   );
+// });
+
 const approveWholesaleQuotation = asyncHandler(async (req, res) => {
   const { quotationID } = req.params;
   const userID = req.user._id;
@@ -204,18 +335,15 @@ const approveWholesaleQuotation = asyncHandler(async (req, res) => {
   }
 
   /* -------------------- 5. Fetch quotation items -------------------- */
-  const quotationItems = await WholesaleQuotationItem
-    .find({ quotationID: quotation._id })
-    .populate("productID", "name price");
+  const quotationItems = await WholesaleQuotationItem.find({
+    quotationID: quotation._id,
+  });
 
   if (!quotationItems.length) {
     throw new ApiError(400, "Quotation has no items");
   }
 
-  /* -------------------- 6. Build order products & freeze prices -------------------- */
-  let subTotal = 0;
-  const orderProducts = [];
-
+  /* -------------------- 6. Freeze negotiated prices -------------------- */
   for (const item of quotationItems) {
     if (!item.approvedPrice || item.approvedPrice <= 0) {
       throw new ApiError(
@@ -227,75 +355,25 @@ const approveWholesaleQuotation = asyncHandler(async (req, res) => {
     // Freeze negotiated price
     item.finalPrice = item.approvedPrice;
     await item.save();
-
-    const lineTotal = item.finalPrice * item.quantity;
-    subTotal += lineTotal;
-
-    orderProducts.push({
-      productID: item.productID._id,
-      name: item.productID.name,
-      quantity: item.quantity,
-      price: item.productID.price,          // original price snapshot
-      finalUnitPrice: item.finalPrice,       // negotiated price
-      appliedOfferSnapshot: {
-        title: "Wholesale Quotation",
-        discountType: "NEGOTIATED",
-        discountValue: item.productID.price - item.finalPrice
-      }
-    });
   }
 
-  /* -------------------- 7. Fetch user address -------------------- */
-  const user = await User.findById(userID).select(
-    "address street city state pincode"
-  );
-
-  if (!user) {
-    throw new ApiError(404, "User not found");
-  }
-
-  const deliveryAddress1 = `${user.address}, ${user.city}, ${user.state} - ${user.pincode}`;
-
-  /* -------------------- 8. Tax & total calculation -------------------- */
-  const CGST = subTotal * 0.09;
-  const SGST = subTotal * 0.09;
-  const shippingCharge = 0; // usually included / negotiated in wholesale
-  const total = subTotal + CGST + SGST + shippingCharge;
-
-  /* -------------------- 9. Create order -------------------- */
-  const orderPayload = {
-    userID,
-    products: orderProducts,
-    CGST,
-    SGST,
-    shippingCharge,
-    deliveryAddress1,
-    total,
-    status: "PLACED"
-  };
-
-  // Optional fields (safe even if schema doesn't have them)
-  orderPayload.quotationID = quotation._id;
-  orderPayload.orderType = "WHOLESALE";
-
-  const order = await Order.create(orderPayload);
-
-  /* -------------------- 10. Update quotation status -------------------- */
-  quotation.status = "ORDER_CREATED";
+  /* -------------------- 7. Update quotation status -------------------- */
+  quotation.status = "APPROVED";
   await quotation.save();
 
-  /* -------------------- 11. Response -------------------- */
-  return res.status(201).json(
+  /* -------------------- 8. Response -------------------- */
+  return res.status(200).json(
     new ApiResponse(
-      201,
+      200,
       {
-        orderID: order._id,
-        quotationID: quotation._id
+        quotationID: quotation._id,
+        status: quotation.status,
       },
-      "Wholesale quotation approved and order placed successfully"
+      "Wholesale quotation approved successfully"
     )
   );
 });
+
 
 
 
@@ -427,14 +505,13 @@ const getWholesaleQuotationDetails = asyncHandler(async (req, res) => {
 
 const getWholesaleQuotationById = asyncHandler(async (req, res) => {
   const { quotationID } = req.params;
-  const userID = req.user._id;
 
   // 1️⃣ Validate ID
   if (!mongoose.Types.ObjectId.isValid(quotationID)) {
     throw new ApiError(400, "Invalid quotation ID");
   }
 
-  // 2️⃣ Aggregate quotation + items + product details
+  // 2️⃣ Aggregate quotation + user + items + products
   const result = await WholesaleQuotation.aggregate([
     {
       $match: {
@@ -442,6 +519,20 @@ const getWholesaleQuotationById = asyncHandler(async (req, res) => {
       },
     },
 
+    // 🔹 Fetch user details
+    {
+      $lookup: {
+        from: "users",
+        localField: "userID",
+        foreignField: "_id",
+        as: "user",
+      },
+    },
+    {
+      $unwind: "$user",
+    },
+
+    // 🔹 Fetch quotation items
     {
       $lookup: {
         from: "wholesalequotationitems",
@@ -451,6 +542,7 @@ const getWholesaleQuotationById = asyncHandler(async (req, res) => {
       },
     },
 
+    // 🔹 Fetch product details
     {
       $lookup: {
         from: "products",
@@ -460,6 +552,7 @@ const getWholesaleQuotationById = asyncHandler(async (req, res) => {
       },
     },
 
+    // 🔹 Shape items
     {
       $addFields: {
         items: {
@@ -515,9 +608,12 @@ const getWholesaleQuotationById = asyncHandler(async (req, res) => {
       },
     },
 
+    // 🔹 Clean up response
     {
       $project: {
         products: 0,
+        "user.password": 0,
+        "user.refreshToken": 0,
       },
     },
   ]);
@@ -528,9 +624,7 @@ const getWholesaleQuotationById = asyncHandler(async (req, res) => {
 
   const quotation = result[0];
 
-
-
-  // 4️⃣ Response
+  // 3️⃣ Response
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -539,6 +633,7 @@ const getWholesaleQuotationById = asyncHandler(async (req, res) => {
     )
   );
 });
+
 
 
 const getMyWholesaleQuotations = asyncHandler(async (req, res) => {
@@ -670,6 +765,141 @@ const rejectWholesaleQuotationByAdmin = asyncHandler(async (req, res) => {
 });
 
 
+const updateWholesaleQuotation = asyncHandler(async (req, res) => {
+
+  const { quotationID } = req.params;
+  const userID = req.user._id;
+  const { products, userNote } = req.body;
+
+  /* -------------------- 1️⃣ Validate quotation ID -------------------- */
+  if (!mongoose.Types.ObjectId.isValid(quotationID)) {
+    throw new ApiError(400, "Invalid quotation ID");
+  }
+
+  /* -------------------- 2️⃣ Validate input -------------------- */
+  if (!products || !Array.isArray(products) || products.length === 0) {
+    throw new ApiError(
+      400,
+      "Products are required to update quotation"
+    );
+  }
+
+  for (const item of products) {
+    if (
+      !item.productID ||
+      !item.quantity ||
+      item.quantity < 50 ||
+      !item.requestedPrice ||
+      item.requestedPrice <= 0
+    ) {
+      throw new ApiError(
+        400,
+        "Each product must have productID, quantity (min 50) and requestedPrice"
+      );
+    }
+  }
+
+  /* -------------------- 3️⃣ Fetch quotation -------------------- */
+  const quotation = await WholesaleQuotation.findById(quotationID);
+
+  if (!quotation) {
+    throw new ApiError(404, "Wholesale quotation not found");
+  }
+
+  /* -------------------- 4️⃣ Ownership check -------------------- */
+  if (quotation.userID.toString() !== userID.toString()) {
+    throw new ApiError(
+      403,
+      "You are not allowed to update this quotation"
+    );
+  }
+
+  /* -------------------- 5️⃣ Status guard -------------------- */
+  if (quotation.status !== "REQUESTED") {
+    throw new ApiError(
+      400,
+      "Only REQUESTED quotations can be updated"
+    );
+  }
+
+  /* -------------------- 6️⃣ Validate products exist -------------------- */
+  const productIDs = products.map(p => p.productID);
+
+  const dbProducts = await Product.find({
+    _id: { $in: productIDs }
+  }).select("_id");
+
+  if (dbProducts.length !== products.length) {
+    throw new ApiError(
+      404,
+      "One or more products not found"
+    );
+  }
+
+  /* -------------------- 7️⃣ Transaction start -------------------- */
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    /* -------- Remove old quotation items -------- */
+    await WholesaleQuotationItem.deleteMany(
+      { quotationID: quotation._id },
+      { session }
+    );
+
+    /* -------- Insert new quotation items -------- */
+    let totalQuantity = 0;
+    let totalAmount = 0;
+
+    const quotationItems = products.map(item => {
+      totalQuantity += item.quantity;
+      totalAmount += item.quantity * item.requestedPrice;
+
+      return {
+        quotationID: quotation._id,
+        productID: item.productID,
+        quantity: item.quantity,
+        requestedPrice: item.requestedPrice,
+      };
+    });
+
+    await WholesaleQuotationItem.insertMany(
+      quotationItems,
+      { session }
+    );
+
+    /* -------- Update quotation header -------- */
+    quotation.totalQuantity = totalQuantity;
+    quotation.totalAmount = totalAmount;
+    quotation.userNote = userNote || quotation.userNote;
+
+    await quotation.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    /* -------------------- 8️⃣ Response -------------------- */
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          quotationID: quotation._id,
+          quotationNumber: quotation.quotationNumber,
+          totalQuantity,
+          totalAmount
+        },
+        "Wholesale quotation updated successfully"
+      )
+    );
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
+});
+
+
+
 export {
   createWholesaleQuotation,
   revertWholesaleQuotation,
@@ -679,8 +909,6 @@ export {
   getMyWholesaleQuotations,
   getAllWholesaleQuotations,
   rejectWholesaleQuotation,
-  rejectWholesaleQuotationByAdmin
-
-
-
+  rejectWholesaleQuotationByAdmin,
+  updateWholesaleQuotation
 }
