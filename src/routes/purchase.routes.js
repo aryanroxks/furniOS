@@ -6,7 +6,7 @@ import {
     updatePurchase,
     receivePurchase,
     cancelPurchase,
-    deletePurchase
+    deletePurchase,generatePurchaseInvoice
 } from "../controllers/purchase.controller.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -70,6 +70,14 @@ router.route("/:id")
     authorizeRoles(roles.admin),
     deletePurchase
   );
+
+router.get(
+    "/:id/invoice",
+    verifyJWT,
+    authorizeRoles(roles.admin),
+    generatePurchaseInvoice
+);
+
 
 
 export default router;

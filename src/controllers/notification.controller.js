@@ -154,16 +154,12 @@ export const deleteNotification = asyncHandler(async (req, res) => {
 
 
 export const getAdminNotifications = asyncHandler(async (req, res) => {
-  const roleID = req.user.roleID;
-
   const notifications = await Notification.find({
-    $or: [
-      { targetType: "all" },
-      { targetType: "role", roleID }
-    ]
+    targetType: { $in: ["all", "role"] }
   }).sort({ createdAt: -1 });
 
   res.status(200).json(
     new ApiResponse(200, notifications, "Admin notifications fetched")
   );
 });
+

@@ -8,7 +8,7 @@ import { OrderReturnDetail } from "../models/orders_return_details.model.js";
 import { OrderReturn } from "../models/orders_return.model.js";
 import { roles } from "../constants.js"
 import { Payment } from "../models/payments.model.js";
-
+import { sendNotification } from "../utils/sendNotification.js";
 
 
 const createOrderReturn = asyncHandler(async (req, res) => {
@@ -274,6 +274,43 @@ const updateReturnStatus = asyncHandler(async (req, res) => {
   }
 
   await orderReturn.save();
+
+
+  if (["APPROVED", "REJECTED", "PICKED_UP", "REFUNDED"].includes(status)) {
+    try {
+      let title = "Return Update";
+      let message = "";
+
+      switch (status) {
+        case "APPROVED":
+          message = "Your return request has been approved.";
+          break;
+
+        case "REJECTED":
+          message = "Your return request has been rejected.";
+          break;
+
+        case "PICKED_UP":
+          message = "Your returned item has been picked up.";
+          break;
+
+        case "REFUNDED":
+          message = "Your refund has been processed successfully.";
+          break;
+      }
+
+      await sendNotification({
+        targetType: "single",
+        userID: orderReturn.userID,
+        type: "return",
+        title,
+        message
+      });
+    } catch (err) {
+      console.error("Return notification failed:", err.message);
+    }
+  }
+
 
   return res.status(200).json(
     new ApiResponse(200, orderReturn, "Return status updated")
@@ -628,5 +665,5 @@ export {
   adminGetAllReturns,
   cancelReturnRequest,
   adminGetReturnDetails
-  
+
 }

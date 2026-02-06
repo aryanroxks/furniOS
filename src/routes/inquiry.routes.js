@@ -20,6 +20,8 @@ const router = Router();
 /* ================= USER ROUTES ================= */
 
 // create inquiry / complaint
+
+//base url /inquiries
 router
   .route("/")
   .post(verifyJWT, authorizeRoles(roles.retail_customer,roles.admin,roles.wholesale_customer), createInquiry);

@@ -10,6 +10,9 @@ import {
   getMyFeedbacks,
   getProductFeedbacks,
   getProductRatingSummary,
+  updateFeedbackAdmin,
+  getFeedbackByIdAdmin,
+  getAllFeedbacksAdmin
 } from "../controllers/feedback.controller.js";
 
 const router = Router();
@@ -17,6 +20,7 @@ const router = Router();
 /* ================= USER ROUTES ================= */
 
 // create feedback for a product
+//base url /feedbacks
 router
   .route("/:productId")
   .post(verifyJWT, authorizeRoles(roles.admin,roles.wholesale_customer,roles.retail_customer), createFeedback);
@@ -48,5 +52,29 @@ router
 router
   .route("/product/:productId/summary")
   .get(getProductRatingSummary);
+
+
+router
+  .route("/admin")
+  .get(
+    verifyJWT,
+    authorizeRoles(roles.admin),
+    getAllFeedbacksAdmin
+  );
+
+router
+  .route("/admin/:feedbackId")
+  .get(
+    verifyJWT,
+    authorizeRoles(roles.admin),
+    getFeedbackByIdAdmin
+  )
+  .patch(
+    verifyJWT,
+    authorizeRoles(roles.admin),
+    updateFeedbackAdmin
+  );
+
+
 
 export default router;

@@ -11,6 +11,7 @@ import { OrderDetail } from "../models/orders_details.model.js";
 import PDFDocument from "pdfkit";
 import { WholesaleQuotation } from "../models/quotation_master.model.js";
 import { WholesaleQuotationItem } from "../models/quotation_items.model.js";
+import { sendNotification } from "../utils/sendNotification.js";
 
 // const createOrder = asyncHandler(async (req, res) => {
 
@@ -100,6 +101,7 @@ import { applyBestOffer } from "../utils/applyBestOffer.js";
 import { Payment } from "../models/payments.model.js";
 
 const createOrder = asyncHandler(async (req, res) => {
+
     const { items, deliveryAddress1, deliveryAddress2 } = req.body;
 
     if (!deliveryAddress1) {
@@ -172,6 +174,18 @@ const createOrder = asyncHandler(async (req, res) => {
             finalUnitPrice: item.finalUnitPrice,
             appliedOfferSnapshot: item.appliedOfferSnapshot
         });
+    }
+
+    try {
+        await sendNotification({
+            targetType: "single",
+            userID: req.user._id,
+            type: "order",
+            title: "Order Placed",
+            message: `Your order has been placed successfully`
+        });
+    } catch (err) {
+        console.error("Order notification failed:", err.message);
     }
 
     return res
@@ -280,6 +294,34 @@ export const createWholesaleOrder = asyncHandler(async (req, res) => {
         });
     }
 
+
+    try {
+        await sendNotification({
+            targetType: "single",
+            userID,
+            type: "order",
+            title: "Wholesale Order Placed",
+            message: "Your wholesale order has been placed successfully"
+        });
+    } catch (err) {
+        console.error("Wholesale user notification failed:", err.message);
+    }
+
+    // 🔔 NOTIFICATION — Admin
+    try {
+        await sendNotification({
+            targetType: "role",
+            roleID: roles.admin, // assuming admin role is used in admin dashboard
+            type: "order",
+            title: "New Wholesale Order",
+            message: "A new wholesale order has been placed"
+        });
+    } catch (err) {
+        console.error("Admin order notification failed:", err.message);
+    }
+
+
+
     return res.status(201).json(
         new ApiResponse(
             201,
@@ -386,7 +428,29 @@ const orderStatus = asyncHandler(async (req, res) => {
     }
 
     // ✅ Deduct stock ONLY when shipping
+    // if (order.status === "CONFIRMED" && newStatus === "SHIPPED") {
+    //     for (const item of order.products) {
+    //         const product = await Product.findById(item.productID);
+
+    //         if (!product) {
+    //             throw new ApiError(404, "Product not found");
+    //         }
+
+    //         if (item.quantity > product.stock) {
+    //             throw new ApiError(400, "Insufficient stock for shipping");
+    //         }
+
+    //         await Product.findByIdAndUpdate(
+    //             item.productID,
+    //             { $inc: { stock: -item.quantity } }
+    //         );
+    //     }
+    // }
+
+    // ✅ Deduct stock ONLY when shipping
     if (order.status === "CONFIRMED" && newStatus === "SHIPPED") {
+        const adminRoleId = await getAdminRoleId();
+
         for (const item of order.products) {
             const product = await Product.findById(item.productID);
 
@@ -398,12 +462,34 @@ const orderStatus = asyncHandler(async (req, res) => {
                 throw new ApiError(400, "Insufficient stock for shipping");
             }
 
+            // Deduct stock
             await Product.findByIdAndUpdate(
                 item.productID,
                 { $inc: { stock: -item.quantity } }
             );
+
+            // Re-fetch updated product
+            const updatedProduct = await Product.findById(item.productID);
+
+            // 🔔 LOW STOCK ALERT (Admin)
+            if (updatedProduct.stock <= 5) {
+                try {
+                    await sendNotification({
+                        targetType: "role",
+                        roleID: adminRoleId,
+                        type: "stock",
+                        title: "Low Stock Alert",
+                        message: `${updatedProduct.name} stock is low (${updatedProduct.stock} left)`
+                    });
+                } catch (err) {
+                    console.error("Stock notification failed:", err.message);
+                }
+            }
         }
     }
+
+
+
 
     // ❌ NO stock restore logic needed
     // because cancellation is not allowed after shipping
@@ -416,6 +502,47 @@ const orderStatus = asyncHandler(async (req, res) => {
     }
 
     const updatedOrder = await order.save();
+
+    try {
+        let title = "Order Update";
+        let message = "";
+
+        switch (newStatus) {
+            case "CONFIRMED":
+                message = "Your order has been confirmed.";
+                break;
+
+            case "SHIPPED":
+                message = "Your order has been shipped.";
+                break;
+
+            case "OUT_FOR_DELIVERY":
+                message = "Your order is out for delivery.";
+                break;
+
+            case "DELIVERED":
+                message = "Your order has been delivered successfully.";
+                break;
+
+            case "CANCELLED":
+                message = "Your order has been cancelled.";
+                break;
+        }
+
+        // Only send if message is set (extra safety)
+        if (message) {
+            await sendNotification({
+                targetType: "single",
+                userID: order.userID,
+                type: "order",
+                title,
+                message
+            });
+        }
+    } catch (err) {
+        console.error("Order status notification failed:", err.message);
+    }
+
 
     return res.status(200).json(
         new ApiResponse(200, updatedOrder, "Order status successfully changed!")

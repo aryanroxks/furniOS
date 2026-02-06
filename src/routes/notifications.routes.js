@@ -14,7 +14,7 @@ const router = Router();
 
 
 
-
+//base url /notifications
 router.route("/").post(
   verifyJWT,
   authorizeRoles(roles.admin),

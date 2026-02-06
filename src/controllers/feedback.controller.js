@@ -262,3 +262,77 @@ export const getProductRatingSummary = asyncHandler(async (req, res) => {
     new ApiResponse(200, summary[0], "Product rating summary fetched successfully")
   );
 });
+
+
+export const getAllFeedbacksAdmin = asyncHandler(async (req, res) => {
+  const feedbacks = await Feedback.find()
+    .populate("userID", "username email")
+    .populate("productID", "name")
+    .sort({ createdAt: -1 });
+
+  return res.status(200).json(
+    new ApiResponse(200, feedbacks, "All feedbacks fetched successfully")
+  );
+});
+
+
+/**
+ * GET /feedbacks/admin/:feedbackId
+ * Admin: fetch single feedback
+ */
+export const getFeedbackByIdAdmin = asyncHandler(async (req, res) => {
+  const { feedbackId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(feedbackId)) {
+    throw new ApiError(400, "Invalid feedback ID");
+  }
+
+  const feedback = await Feedback.findById(feedbackId)
+    .populate("userID", "username email")
+    .populate("productID", "name");
+
+  if (!feedback) {
+    throw new ApiError(404, "Feedback not found");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, feedback, "Feedback fetched successfully")
+  );
+});
+
+
+/**
+ * PATCH /feedbacks/admin/:feedbackId
+ * Admin: approve/reject feedback + reply
+ */
+export const updateFeedbackAdmin = asyncHandler(async (req, res) => {
+  const { feedbackId } = req.params;
+  const { status, adminReply } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(feedbackId)) {
+    throw new ApiError(400, "Invalid feedback ID");
+  }
+
+  if (
+    status &&
+    !["pending", "approved", "rejected"].includes(status)
+  ) {
+    throw new ApiError(400, "Invalid feedback status");
+  }
+
+  const feedback = await Feedback.findById(feedbackId);
+
+  if (!feedback) {
+    throw new ApiError(404, "Feedback not found");
+  }
+
+  // moderation updates
+  if (status) feedback.status = status;
+  if (adminReply !== undefined) feedback.adminReply = adminReply;
+
+  await feedback.save();
+
+  return res.status(200).json(
+    new ApiResponse(200, feedback, "Feedback updated successfully")
+  );
+});
