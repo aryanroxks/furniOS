@@ -34,6 +34,7 @@ router.post(
 
 
 router.route("/").get(verifyJWT, authorizeRoles(roles.admin), getFilteredOrders)
+
 // router.route("/").get(verifyJWT, authorizeRoles(roles.admin), getAllOrders)
 router.route("/my").get(verifyJWT, authorizeRoles(roles.admin, roles.retail_customer, roles.wholesale_customer), getMyOrders)
 router.route("/:orderId/cancel").patch(verifyJWT, authorizeRoles(roles.admin, roles.retail_customer, roles.wholesale_customer), cancelOrder)

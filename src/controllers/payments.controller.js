@@ -7,12 +7,15 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import razorpay from "../utils/razorpay.js";
 import crypto from "crypto";
 
+
+
 // const razorpay = new Razorpay({
 //   key_id: process.env.RAZORPAY_KEY_ID,
 //   key_secret: process.env.RAZORPAY_KEY_SECRET,
 // });
 
 const createPayment = asyncHandler(async (req, res) => {
+
   const { orderId, method } = req.body;
 
   if (!orderId || !method) {
@@ -26,12 +29,17 @@ const createPayment = asyncHandler(async (req, res) => {
   }
 
   // Payment allowed only when order is PLACED
-  if (order.status !== "PLACED") {
-    throw new ApiError(
-      400,
-      "Payment can only be initiated for placed orders"
-    );
-  }
+  // if (order.status !== "PLACED") {
+  //   throw new ApiError(
+  //     400,
+  //     "Payment can only be initiated for placed orders"
+  //   );
+  // }
+
+  if (!["PLACED", "PAYMENT_FAILED"].includes(order.status)) {
+  throw new ApiError(400, "Payment not allowed for this order");
+}
+
 
   // COD FLOW
   if (method === "COD") {
@@ -64,13 +72,13 @@ const createPayment = asyncHandler(async (req, res) => {
       orderID: order._id,
       amount: order.total,
       method: "ONLINE",
-      status: "SUCCESS", // ✅ directly success
+      status: "PENDING", //✅ directly success
       razorpayOrderId: razorpayOrder.id,
     });
 
     // ✅ confirm order immediately
-    order.status = "CONFIRMED";
-    await order.save();
+    // order.status = "CONFIRMED";
+    // await order.save();
 
     return res.status(200).json(
       new ApiResponse(
@@ -80,7 +88,7 @@ const createPayment = asyncHandler(async (req, res) => {
           amount: order.total,
           paymentId: payment._id,
         },
-        "Payment marked successful (verification removed)"
+        "Razorpay order created"
       )
     );
   }
@@ -134,6 +142,7 @@ const verifyPayment = asyncHandler(async (req, res) => {
   );
 });
 
+
 const markPaymentSuccess = asyncHandler(async (req, res) => {
   const { paymentId } = req.body;
 
@@ -168,11 +177,69 @@ const markPaymentSuccess = asyncHandler(async (req, res) => {
   );
 });
 
+// controllers/payment.controller.js
+
+const getPayments = asyncHandler(async (req, res) => {
+  const {
+    status,
+    method,
+    orderId,
+    dateFrom,
+    dateTo,
+    page = 1,
+    limit = 10,
+  } = req.query;
+
+  const filter = {};
+
+  // 🔹 Filters
+  if (status) filter.status = status;
+  if (method) filter.method = method;
+
+  if (orderId) {
+    filter.orderID = orderId;
+  }
+
+  if (dateFrom || dateTo) {
+    filter.createdAt = {};
+    if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+    if (dateTo) filter.createdAt.$lte = new Date(dateTo);
+  }
+
+  const skip = (page - 1) * limit;
+
+  // 🔹 Query
+  const payments = await Payment.find(filter)
+    .populate("orderID", "orderNumber total status")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(Number(limit));
+
+  const total = await Payment.countDocuments(filter);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        payments,
+        pagination: {
+          total,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(total / limit),
+        },
+      },
+      "Payments fetched successfully"
+    )
+  );
+});
+
+
 
 
 export {
   createPayment,
   verifyPayment,
   markPaymentSuccess
-
+,getPayments
 }

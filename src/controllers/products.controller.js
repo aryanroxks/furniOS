@@ -737,23 +737,79 @@ const getProductById = asyncHandler(async (req, res) => {
 //     new ApiResponse(200, productsWithOffers, "Products fetched successfully")
 //   );
 // });
+
+// const getProducts = asyncHandler(async (req, res) => {
+//   const { subcategory, search } = req.query;
+//   const filter = {};
+
+//   /* Subcategory filter */
+//   if (subcategory) {
+//     if (!mongoose.isValidObjectId(subcategory)) {
+//       throw new ApiError(400, "Invalid subcategory id");
+//     }
+//     filter.subCategoryID = subcategory;
+//   }
+
+//   /* 🔍 Search filter */
+//   if (search) {
+//     filter.name = {
+//       $regex: search,
+//       $options: "i", // case-insensitive
+//     };
+//   }
+
+//   const products = await Product.find(filter)
+//     .populate("subCategoryID", "name");
+
+//   const productsWithOffers = await Promise.all(
+//     products.map(async (product) => {
+//       const { finalPrice, appliedOffer } = await applyBestOffer(product);
+//       return {
+//         ...product.toObject(),
+//         finalPrice,
+//         appliedOffer,
+//       };
+//     })
+//   );
+
+//   return res.status(200).json(
+//     new ApiResponse(200, productsWithOffers, "Products fetched successfully")
+//   );
+// });
+
 const getProducts = asyncHandler(async (req, res) => {
   const { subcategory, search } = req.query;
   const filter = {};
 
-  /* Subcategory filter */
+  /* Subcategory filter (single or multiple) */
   if (subcategory) {
-    if (!mongoose.isValidObjectId(subcategory)) {
+    let subcategoryIds = [];
+
+    // If subcategory is already an array
+    if (Array.isArray(subcategory)) {
+      subcategoryIds = subcategory;
+    } 
+    // If comma-separated string
+    else {
+      subcategoryIds = subcategory.split(",");
+    }
+
+    // Validate ObjectIds
+    const invalidId = subcategoryIds.find(
+      (id) => !mongoose.isValidObjectId(id)
+    );
+    if (invalidId) {
       throw new ApiError(400, "Invalid subcategory id");
     }
-    filter.subCategoryID = subcategory;
+
+    filter.subCategoryID = { $in: subcategoryIds };
   }
 
   /* 🔍 Search filter */
   if (search) {
     filter.name = {
       $regex: search,
-      $options: "i", // case-insensitive
+      $options: "i",
     };
   }
 
@@ -781,6 +837,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
 
 const getProductsBySubCategory = asyncHandler(async (req, res) => {
+
     const { subCategoryId } = req.params
 
     const subCategory = await SubCategory.findById(subCategoryId)

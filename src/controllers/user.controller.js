@@ -8,7 +8,8 @@ import mongoose from "mongoose";
 import { Role } from "../models/role.model.js"
 import otpStore from "../utils/otpStore.js"
 import { sendEmailOTP } from "../utils/nodemailer.js"
-
+import { Order } from "../models/orders.model.js"
+import {generateReportPDF} from "../utils/reportPdfGenerator.js"
 
 const generateAccessAndRefereshTokens = async (userId) => {
     try {
@@ -300,34 +301,82 @@ const getAllUsers = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, users, "Users fetched successfully"));
 });
 
-const getUserById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
 
-  const user = await User.findById(id).select("-password");
+export const downloadUsersPDF = asyncHandler(async (req, res) => {
+  const { search, role } = req.query;
 
-  if (!user) {
-    throw new ApiError(404, "User not found");
+  const filter = {};
+
+  // 🔍 Search by username or email
+  if (search) {
+    filter.$or = [
+      { username: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+    ];
   }
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, user, "User fetched successfully"));
+  // 🎭 Filter by role
+  if (role) {
+    filter.roleID = role;
+  }
+
+  const users = await User.find(filter)
+    .populate("roleID", "name")
+    .lean();
+
+  const rows = users.map((u) => ({
+    username: u.username,
+    email: u.email,
+    role: u.roleID?.name || "-",
+    createdAt: new Date(u.createdAt).toLocaleDateString(),
+  }));
+
+  return generateReportPDF({
+    res,
+    title: "Users Report",
+    subtitle: "Registered system users",
+    columns: [
+      { label: "Username", key: "username", width: 120 },
+      { label: "Email", key: "email", width: 200 },
+      { label: "Role", key: "role", width: 100 },
+      { label: "Created At", key: "createdAt", width: 100 },
+    ],
+    rows,
+  });
+});
+
+
+
+
+
+const getUserById = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const user = await User.findById(id).select("-password");
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, user, "User fetched successfully"));
 });
 
 const deleteUser = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+    const { id } = req.params;
 
-  const user = await User.findById(id);
+    const user = await User.findById(id);
 
-  if (!user) {
-    throw new ApiError(404, "User not found");
-  }
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
 
-  await User.findByIdAndDelete(id);
+    await User.findByIdAndDelete(id);
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, null, "User deleted successfully"));
+    return res
+        .status(200)
+        .json(new ApiResponse(200, null, "User deleted successfully"));
 });
 
 
@@ -535,46 +584,46 @@ const verifyForgotPasswordOTP = asyncHandler(async (req, res) => {
 
 
 const adminUpdateUser = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const {
-    fullname,
-    phone,
-    gender,
-    address,
-    street,
-    city,
-    state,
-    pincode,
-    roleID,
-    gstNumber
-  } = req.body;
+    const { id } = req.params;
+    const {
+        fullname,
+        phone,
+        gender,
+        address,
+        street,
+        city,
+        state,
+        pincode,
+        roleID,
+        gstNumber
+    } = req.body;
 
-  const user = await User.findById(id);
-  if (!user) throw new ApiError(404, "User not found");
+    const user = await User.findById(id);
+    if (!user) throw new ApiError(404, "User not found");
 
-  await User.findByIdAndUpdate(id, {
-    $set: {
-      fullname,
-      phone,
-      gender,
-      address,
-      street,
-      city,
-      state,
-      pincode,
-      roleID,
-      gstNumber
-    },
-    
-  },{
-            runValidators:true
-  }
+    await User.findByIdAndUpdate(id, {
+        $set: {
+            fullname,
+            phone,
+            gender,
+            address,
+            street,
+            city,
+            state,
+            pincode,
+            roleID,
+            gstNumber
+        },
 
-);
+    }, {
+        runValidators: true
+    }
 
-  return res.status(200).json(
-    new ApiResponse(200, null, "User updated successfully")
-  );
+    );
+
+    return res.status(200).json(
+        new ApiResponse(200, null, "User updated successfully")
+    );
 });
 
 
@@ -599,6 +648,7 @@ export {
     getAllUsers,
     deleteUser,
     getUserById,
-    adminUpdateUser
+    adminUpdateUser,
+    
 }
 

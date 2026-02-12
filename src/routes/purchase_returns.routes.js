@@ -6,6 +6,7 @@ import {
   completePurchaseReturn,
   getPurchaseReturns,
   getPurchaseReturnById,
+  downloadPurchaseReturnsPDF
 } from "../controllers/purchase_returns.controller.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -31,6 +32,13 @@ router
     createPurchaseReturn
   );
 
+
+  router.get(
+  "/pdf",
+  verifyJWT,
+  authorizeRoles(roles.admin),
+  downloadPurchaseReturnsPDF
+);
 /* -------------------- SINGLE RETURN ROUTES -------------------- */
 
 router
@@ -50,6 +58,9 @@ router
     authorizeRoles(roles.admin),
     deletePurchaseReturn
   );
+
+
+
 
 /* -------------------- STATE TRANSITION -------------------- */
 

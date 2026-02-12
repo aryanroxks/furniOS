@@ -449,7 +449,6 @@ const orderStatus = asyncHandler(async (req, res) => {
 
     // ✅ Deduct stock ONLY when shipping
     if (order.status === "CONFIRMED" && newStatus === "SHIPPED") {
-        const adminRoleId = await getAdminRoleId();
 
         for (const item of order.products) {
             const product = await Product.findById(item.productID);
@@ -476,7 +475,7 @@ const orderStatus = asyncHandler(async (req, res) => {
                 try {
                     await sendNotification({
                         targetType: "role",
-                        roleID: adminRoleId,
+                        roleID: roles.admin,
                         type: "stock",
                         title: "Low Stock Alert",
                         message: `${updatedProduct.name} stock is low (${updatedProduct.stock} left)`
@@ -818,6 +817,57 @@ const getFilteredOrders = asyncHandler(async (req, res) => {
     );
 
 })
+
+import { generateReportPDF } from "../utils/reportPdfGenerator.js";
+
+export const downloadFilteredOrdersPDF = asyncHandler(async (req, res) => {
+  const { status, deliveryAssigned } = req.query;
+
+  const filter = {};
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (deliveryAssigned === "true") {
+    filter.deliveryPersonID = { $ne: null };
+  }
+
+  if (deliveryAssigned === "false") {
+    filter.deliveryPersonID = null;
+  }
+
+  // 🔥 NO pagination here
+  const orders = await Order.find(filter)
+    .sort({ createdAt: -1 })
+    .populate("userID", "fullname")
+    .lean();
+
+  const rows = orders.map((o) => ({
+    orderId: o._id.toString().slice(-6),
+    customer: o.userID?.fullname || "Customer",
+    status: o.status,
+    total: o.total,
+    delivery: o.deliveryPersonID ? "Assigned" : "Not Assigned",
+    createdAt: new Date(o.createdAt).toLocaleDateString(),
+  }));
+
+  return generateReportPDF({
+    res,
+    title: "Orders Report",
+    subtitle: "Filtered orders report",
+    columns: [
+      { label: "Order", key: "orderId", width: 80 },
+      { label: "Customer", key: "customer", width: 150 },
+      { label: "Total", key: "total", width: 80 },
+      { label: "Delivery", key: "delivery", width: 100 },
+      { label: "Status", key: "status", width: 100 },
+      { label: "Date", key: "createdAt", width: 100 },
+    ],
+    rows,
+  });
+});
+
 
 
 

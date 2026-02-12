@@ -6,7 +6,8 @@ import {
     updatePurchase,
     receivePurchase,
     cancelPurchase,
-    deletePurchase,generatePurchaseInvoice
+    deletePurchase,generatePurchaseInvoice,
+    downloadPurchasesPDF
 } from "../controllers/purchase.controller.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -32,6 +33,13 @@ router.route("/")
         authorizeRoles(roles.admin),
         getAllPurchases
     );
+
+router.get(
+  "/pdf",
+  verifyJWT,
+  authorizeRoles(roles.admin),
+  downloadPurchasesPDF
+);
 
 // Get / Update purchase by ID
 router.route("/:id")

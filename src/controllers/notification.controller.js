@@ -153,13 +153,40 @@ export const deleteNotification = asyncHandler(async (req, res) => {
 
 
 
+// export const getAdminNotifications = asyncHandler(async (req, res) => {
+//   const notifications = await Notification.find({
+//     targetType: { $in: ["all", "role"] }
+//   }).sort({ createdAt: -1 });
+
+//   res.status(200).json(
+//     new ApiResponse(200, notifications, "Admin notifications fetched")
+//   );
+// });
+
+// export const getAdminNotifications = asyncHandler(async (req, res) => {
+//   const adminRoleId = req.user.roleID;
+
+//   const notifications = await Notification.find({
+//     $or: [
+//       { targetType: "all" },
+//       { targetType: "role", roleID: adminRoleId },
+//       { targetType: "single", userID: req.user._id }
+//     ]
+//   }).sort({ createdAt: -1 });
+
+//   res.status(200).json(
+//     new ApiResponse(200, notifications, "Admin notifications fetched")
+//   );
+// });
+
 export const getAdminNotifications = asyncHandler(async (req, res) => {
-  const notifications = await Notification.find({
-    targetType: { $in: ["all", "role"] }
-  }).sort({ createdAt: -1 });
+const notifications = await Notification.find({
+  targetType: { $in: ["all", "role", "single"] }
+}).sort({ createdAt: -1 });
 
   res.status(200).json(
     new ApiResponse(200, notifications, "Admin notifications fetched")
   );
 });
+
 

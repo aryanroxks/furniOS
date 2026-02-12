@@ -5,6 +5,7 @@ import {
   getVendorById,
   updateVendor,
   toggleVendorStatus,
+  downloadVendorsPDF
 } from "../controllers/vendor.controller.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -21,6 +22,14 @@ const router = Router();
 router.route("/")
   .post(verifyJWT, authorizeRoles(roles.admin), createVendor)
   .get(verifyJWT, authorizeRoles(roles.admin), getAllVendors);
+
+router.get(
+  "/pdf",
+  verifyJWT,
+  authorizeRoles(roles.admin),
+  downloadVendorsPDF
+);
+
 
 router.route("/:id")
   .get(verifyJWT, authorizeRoles(roles.admin), getVendorById)

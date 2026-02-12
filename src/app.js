@@ -44,6 +44,8 @@ import feedbackRouter from "./routes/feedback.routes.js"
 import inquiryRouter from "./routes/inquiry.routes.js"
 import uomRouter from "./routes/uom.routes.js"
 import purchaseReturnRouter from "./routes/purchase_returns.routes.js"
+import dashboardRouter from "./routes/dashboard.routes.js"
+import reportRouter from "./routes/reports.routes.js"
 
 
 
@@ -68,7 +70,8 @@ app.use("/api/v1/feedbacks",feedbackRouter)
 app.use("/api/v1/inquiries",inquiryRouter)
 app.use("/api/v1/uoms",uomRouter)
 app.use("/api/v1/purchase-returns",purchaseReturnRouter)
-
+app.use("/api/v1/dashboard",dashboardRouter)
+app.use("/api/v1/reports",reportRouter)
 
 
 

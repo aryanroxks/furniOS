@@ -57,6 +57,53 @@ const getAllVendors = asyncHandler(async (req, res) => {
 });
 
 
+import { generateReportPDF } from "../utils/reportPdfGenerator.js";
+
+export const downloadVendorsPDF = asyncHandler(async (req, res) => {
+  const { search, isActive } = req.query;
+
+  const query = {};
+
+  if (typeof isActive !== "undefined") {
+    query.isActive = isActive === "true";
+  }
+
+  if (search) {
+    query.$or = [
+      { name: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+      { phone: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const vendors = await Vendor.find(query)
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const rows = vendors.map((v) => ({
+    name: v.name,
+    email: v.email,
+    phone: v.phone,
+    status: v.isActive ? "Active" : "Inactive",
+    createdAt: new Date(v.createdAt).toLocaleDateString(),
+  }));
+
+  return generateReportPDF({
+    res,
+    title: "Vendors Report",
+    subtitle: "Registered vendors",
+    columns: [
+      { label: "Name", key: "name", width: 150 },
+      { label: "Email", key: "email", width: 200 },
+      { label: "Phone", key: "phone", width: 120 },
+      { label: "Status", key: "status", width: 80 },
+      { label: "Created At", key: "createdAt", width: 100 },
+    ],
+    rows,
+  });
+});
+
+
 const getVendorById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 

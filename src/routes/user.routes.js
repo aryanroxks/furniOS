@@ -2,7 +2,7 @@ import { Router } from "express";
 
 import { upload } from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js"
-import { changeCurrentPassword, adminUpdateUser,getCurrentUser, logInUser, logOutUser, updateProfileRequest, deleteUser, verifyEmailOTP, refreshAccessToken, registerRetailUser, registerWholesaleUser, registerDeliveryPerson, forgotPasswordRequest, verifyForgotPasswordOTP, getAllUsers, getUserById } from "../controllers/user.controller.js"
+import { changeCurrentPassword,downloadUsersPDF,adminUpdateUser,getCurrentUser, logInUser, logOutUser, updateProfileRequest, deleteUser, verifyEmailOTP, refreshAccessToken, registerRetailUser, registerWholesaleUser, registerDeliveryPerson, forgotPasswordRequest, verifyForgotPasswordOTP, getAllUsers, getUserById } from "../controllers/user.controller.js"
 import { authorizeRoles } from "../middlewares/authorizeRoles.middleware.js";
 import { roles } from "../constants.js"
 import { getNotActivatedDeliveryUsers } from "../controllers/delivery_person.controller.js";
@@ -21,6 +21,12 @@ router.route("/all").get(
   getAllUsers
 );
 
+router.get(
+  "/pdf",
+  verifyJWT,
+  authorizeRoles(roles.admin),
+  downloadUsersPDF
+);
 
 
 router.route("/refresh-token").post(refreshAccessToken)
@@ -67,6 +73,9 @@ router.get(
 
 
 //base url /users
+
+
+
 router.patch(
   "/admin/:id",
   verifyJWT,
